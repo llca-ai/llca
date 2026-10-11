@@ -1,0 +1,247 @@
+# Redaction cases: every rule in redaction.rules is proven here.
+# `cargo test` runs all of them and reports the line of any case that fails.
+#
+#   in:   text as the agent sent it (a command, or any string argument)
+#   out:  the exact text expected in the journal
+#   hide: a fragment that must not appear in the journal (when the exact
+#         output does not matter)
+#   keep: text that must be stored unchanged (no false positive)
+#   json: an argument object as JSON; follow it with out: (JSON, compared
+#         as values) or hide:
+#   kind: the label the dashboard shows for a masked secret ("GitHub
+#         token", "URL parameter "sig"", "Value of "API_TOKEN""…)
+#
+# Escapes in in:/out:/hide:/keep: lines: \n (new line), \t (tab), \\ (backslash).
+# json: lines (and the out: after them) use JSON's own escapes.
+# A blank line or a comment ends nothing; each in:/json: starts a new case.
+# Use made-up secrets only.
+
+# ---- KEY=value, --flag value, "key": "value" ------------------------------
+in:   export OPENAI_API_KEY=sk-proj-abcdefghijklmnop1234
+out:  export OPENAI_API_KEY=[REDACTED]
+kind: OpenAI or Anthropic API key
+in:   gh auth login --token ghtoken123
+hide: ghtoken123
+in:   mysql --password S3cr3t
+hide: S3cr3t
+in:   {"credential":{"provider":"cloudflare_artifact","branch":"main","token":"art_v2_x_FAKEfake0123456789ab","auth_mode":"http_extra_header"}}
+out:  {"credential":{"provider":"cloudflare_artifact","branch":"main","token":"[REDACTED]","auth_mode":"http_extra_header"}}
+kind: Value of "token"
+in:   echo {\"password\": \"hunter2\", \"user\": \"bob\"}
+out:  echo {\"password\": \"[REDACTED]\", \"user\": \"bob\"}
+in:   {'api_key': 'abc123'}
+out:  {'api_key': '[REDACTED]'}
+keep: {"tokens_used": 12}
+keep: git commit -m 'fix secret handling'
+keep: grep -r token src/
+keep: grep "token" src/
+
+# ---- Labels (any language) ------------------------------------------------
+in:   printf 'mot de passe : hunter2\\n' > /tmp/notes.txt
+out:  printf 'mot de passe : [REDACTED]' > /tmp/notes.txt
+in:   echo mdp=abc123 >> .env
+out:  echo mdp=[REDACTED] >> .env
+kind: Value after "mdp"
+in:   echo 'clé API: xyz789'
+out:  echo 'clé API: [REDACTED]'
+in:   echo "Clés secrètes = s3cr3t"
+hide: s3cr3t
+keep: git commit -m 'changer le mot de passe'
+
+# ---- URL parameters -------------------------------------------------------
+in:   https://x.blob.example/files/raw?se=2026-01-01T00%3A00%3A00Z&sp=r&sig=FAKEsig0123abcd%3D
+out:  https://x.blob.example/files/raw?se=2026-01-01T00%3A00%3A00Z&sp=r&sig=[REDACTED]
+kind: URL parameter "sig"
+in:   curl 'https://s3.example/o?X-Amz-Signature=abcd&X-Amz-Date=1'
+out:  curl 'https://s3.example/o?X-Amz-Signature=[REDACTED]&X-Amz-Date=1'
+in:   open https://app.example/cb?code=4/0Ab12&state=xyz
+out:  open https://app.example/cb?code=[REDACTED]&state=xyz
+keep: https://example.com/search?q=token&page=2
+keep: a && key=1
+
+# ---- Token formats --------------------------------------------------------
+in:   echo xoxb-1234567890-abcdefghij
+hide: xoxb-1234567890
+in:   stripe sk_live_51Habcdefghijklmnop
+hide: sk_live_51H
+in:   echo ghp_abcdefghijklmnopqrstuvwxyz0123456789
+out:  echo [REDACTED]
+kind: GitHub token
+in:   AKIAABCDEFGHIJKLMNOP is the key
+out:  [REDACTED] is the key
+in:   echo eyJhbGciOiJIUzI1.eyJzdWIiOiIxMjM0.SflKxwRJSMeKKF2QT4
+out:  echo [REDACTED]
+kind: JSON Web Token
+in:   npm config set //registry.npmjs.org/:_authToken=npm_abcdefghijklmnopqrstuvwxyz
+hide: npm_abcdef
+keep: git checkout sk-feature
+
+# ---- Structure handled by the code ----------------------------------------
+in:   curl -u admin:hunter2 https://x.example
+hide: hunter2
+in:   curl --user=admin:hunter2 https://x.example
+hide: hunter2
+in:   mysql -p'S3cr3t!' -u root
+hide: S3cr3t
+in:   mysqldump -pS3cr3t db
+hide: S3cr3t
+in:   psql postgresql://user:pa55word@db/app
+hide: pa55word
+kind: Password in a URL
+in:   redis-cli -u redis://default:pw@host:6379
+out:  redis-cli -u redis://[REDACTED]@host:6379
+in:   sshpass -p 'mot de passe' ssh host
+hide: mot de passe
+in:   curl -H 'Authorization: Bearer abc.def'
+out:  curl -H 'Authorization: Bearer [REDACTED]'
+kind: Authorization header
+in:   x -----BEGIN RSA PRIVATE KEY-----\nMIIabc\n-----END RSA PRIVATE KEY----- y
+out:  x [REDACTED] y
+kind: Private key
+in:   cat <<'EOF' > notes.txt\nPRIVATE\nEOF\necho fait
+out:  cat <<'EOF' > notes.txt\n[CONTENT NOT KEPT]\nEOF\necho fait
+in:   python3 - <<-END\n\timport os\n\tEND\nls
+out:  python3 - <<-END\n[CONTENT NOT KEPT]\n\tEND\nls
+keep: cat <<EOF\nunterminated
+keep: mkdir -p src/app && docker run -p 80:80 nginx
+keep: mysql -u root db
+keep: redis-cli -u redis://host:6379
+
+# ---- Argument objects (field and omit rules) ------------------------------
+json: {"session_id": 20090, "chars": "{\"token\":\"x\"}\n"}
+out:  {"session_id": 20090, "chars": "[CONTENT NOT KEPT]"}
+json: {"url": "https://api.example", "headers": {"X-Api-Key": "abc", "Accept": "json"}}
+out:  {"url": "https://api.example", "headers": {"X-Api-Key": "[REDACTED]", "Accept": "json"}}
+json: {"privateKey": "abc", "access_token": "def", "max_tokens": 4096, "tokens_used": 3}
+out:  {"privateKey": "[REDACTED]", "access_token": "[REDACTED]", "max_tokens": 4096, "tokens_used": 3}
+kind: Field "privateKey"
+json: {"file_path": "/tmp/a.txt", "content": "PRIVATE"}
+out:  {"file_path": "/tmp/a.txt", "content": "[CONTENT NOT KEPT]"}
+json: {"command": ["mysql", "-pS3cr3t", "--password", "other", "-u", "root"]}
+out:  {"command": ["mysql", "-p[REDACTED]", "--password", "[REDACTED]", "-u", "root"]}
+
+# ---- HTTP headers (header rules) ------------------------------------------
+in:   curl -H 'Cookie: sessionid=FAKEsess01; csrftoken=FAKEcsrf02' https://app.example
+out:  curl -H 'Cookie: [REDACTED]' https://app.example
+kind: Header "Cookie"
+in:   curl -H "Authorization: Token FAKEdrf0123456789" https://api.example
+out:  curl -H "Authorization: [REDACTED]" https://api.example
+kind: Header "Authorization"
+in:   printf 'GET / HTTP/1.1\nCookie: a=FAKE1; b=FAKE2\nHost: x\n'
+out:  printf 'GET / HTTP/1.1\nCookie: [REDACTED]\nHost: x\n'
+keep: grep -rn "Cookie:" src/
+keep: curl -H 'Accept: application/json' https://api.example
+
+# ---- More secret names (key and field rules) ------------------------------
+in:   export DB_PASS=FAKEdbpass99
+out:  export DB_PASS=[REDACTED]
+kind: Value of "DB_PASS"
+in:   gpg --batch --passphrase FAKEphrase77 -d notes.gpg
+out:  gpg --batch --passphrase [REDACTED] -d notes.gpg
+in:   openssl enc -aes-256-cbc -pass pass:FAKEphrase77 -in a.txt
+out:  openssl enc -aes-256-cbc -pass pass:[REDACTED] -in a.txt
+kind: Value after "pass"
+in:   export ENCRYPTION_KEY=FAKEenc0123 SIGNING_KEY=FAKEsig0123
+out:  export ENCRYPTION_KEY=[REDACTED] SIGNING_KEY=[REDACTED]
+json: {"env": {"DB_PASS": "FAKEdbpass99", "PASSPHRASE": "FAKEphrase77", "MASTER_KEY": "FAKEmaster1", "SORT_KEY": "name"}}
+out:  {"env": {"DB_PASS": "[REDACTED]", "PASSPHRASE": "[REDACTED]", "MASTER_KEY": "[REDACTED]", "SORT_KEY": "name"}}
+keep: npx jest --passWithNoTests src/
+keep: git commit -m 'bypass the cache'
+
+# ---- Labels with a quoted value -------------------------------------------
+in:   echo mdp="FAKEmdp123" >> .env
+out:  echo mdp="[REDACTED]" >> .env
+in:   echo "mot de passe : 'FAKEmdp123'"
+out:  echo "mot de passe : '[REDACTED]'"
+kind: Value after "mot de passe"
+
+# ---- Private keys: PGP, no END marker, cut into lines ---------------------
+in:   echo '-----BEGIN PGP PRIVATE KEY BLOCK-----\nlQOYBFAKEBODY\n-----END PGP PRIVATE KEY BLOCK-----'
+out:  echo '[REDACTED]'
+kind: Private key
+in:   echo '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlFAKEBODY' > id_test
+out:  echo '[REDACTED]
+json: {"lines": ["-----BEGIN RSA PRIVATE KEY-----", "MIIEFAKELINE1", "MIIEFAKELINE2", "-----END RSA PRIVATE KEY-----", "done"]}
+out:  {"lines": ["[REDACTED]", "[REDACTED]", "[REDACTED]", "[REDACTED]", "done"]}
+
+# ---- Password options -----------------------------------------------------
+in:   docker login -u bob -p FAKEdockerpw ghcr.io
+out:  docker login -u bob -p [REDACTED] ghcr.io
+kind: Password (docker -p)
+in:   redis-cli -h db -a FAKEredispw ping
+out:  redis-cli -h db -a [REDACTED] ping
+json: {"command": ["docker", "login", "-p", "FAKEdockerpw", "ghcr.io"]}
+out:  {"command": ["docker", "login", "-p", "[REDACTED]", "ghcr.io"]}
+keep: docker run -p 8080:80 nginx
+keep: ssh -p 2222 host
+
+# ---- Settings given as words: config set NAME VALUE -----------------------
+in:   aws configure set aws_secret_access_key FAKEawsSecret0123
+out:  aws configure set aws_secret_access_key [REDACTED]
+kind: Value of "aws_secret_access_key"
+in:   git config --global github.token FAKEgh0123
+out:  git config --global github.token [REDACTED]
+keep: git config --get user.name
+keep: git config --global user.email bob@example.com
+
+# ---- URL parameters inside an encoded URL, or after &amp; -----------------
+in:   curl 'https://x.example/cb?redirect=https%3A%2F%2Fy.example%2F%3Ftoken%3DFAKEtok123%26page%3D2'
+out:  curl 'https://x.example/cb?redirect=https%3A%2F%2Fy.example%2F%3Ftoken%3D[REDACTED]%26page%3D2'
+kind: URL parameter "token"
+in:   open 'https://x.example/a?foo=1&amp;sig=FAKEsig456'
+out:  open 'https://x.example/a?foo=1&amp;sig=[REDACTED]'
+keep: https://x.example/a?next=%3Fpage%3D2
+
+# ---- More token formats ---------------------------------------------------
+in:   echo GOCSPX-FAKEfakeFAKEfake01234
+out:  echo [REDACTED]
+kind: Google OAuth client secret
+in:   echo SG.FAKEfakeFAKEfake01.FAKEfakeFAKEfakeFAKEfake0123456789
+out:  echo [REDACTED]
+kind: SendGrid API key
+in:   twine upload -u __token__ -p pypi-AgEIcHlwaS5vcmcFAKEfakeFAKEfakeFAKEfake0123456789
+out:  twine upload -u __token__ -p [REDACTED]
+kind: PyPI token
+in:   doctl auth init -t dop_v1_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+out:  doctl auth init -t [REDACTED]
+kind: DigitalOcean token
+in:   echo shpat_0123456789abcdef0123456789abcdef
+out:  echo [REDACTED]
+kind: Shopify token
+in:   echo sbp_0123456789abcdef0123456789abcdef0123456789abcdef
+out:  echo [REDACTED]
+kind: Supabase token
+in:   echo xai-FAKEfakeFAKEfake0123456789
+out:  echo [REDACTED]
+kind: xAI API key
+in:   echo gsk_FAKEfakeFAKEfake0123456789
+out:  echo [REDACTED]
+kind: Groq API key
+in:   echo r8_FAKEfakeFAKEfake0123456789
+out:  echo [REDACTED]
+kind: Replicate token
+in:   echo lin_api_FAKEfakeFAKEfake0123456789
+out:  echo [REDACTED]
+kind: Linear API key
+in:   echo ntn_FAKEfakeFAKEfake0123456789
+out:  echo [REDACTED]
+kind: Notion token
+in:   echo secret_FAKEfakeFAKEfakeFAKEfakeFAKEfake01234567
+out:  echo [REDACTED]
+kind: Notion token
+in:   vault login hvs.FAKEfakeFAKEfake0123456789
+out:  vault login [REDACTED]
+kind: Vault token
+in:   echo PMAK-FAKEfakeFAKEfake0123456789
+out:  echo [REDACTED]
+kind: Postman API key
+in:   echo ATATT3FAKEfakeFAKEfake0123456789
+out:  echo [REDACTED]
+kind: Atlassian API token
+in:   echo SK0123456789abcdef0123456789abcdef
+out:  echo [REDACTED]
+kind: Twilio API key
+in:   echo key-0123456789abcdef0123456789abcdef
+out:  echo [REDACTED]
+kind: Mailgun API key
+keep: pip install sk-video secret_sauce key-value

@@ -1,0 +1,472 @@
+# AgentLedger service rules
+#
+# These rules name the online services shown in the dashboard's map
+# ("Where the agents went"). A service is shown only when the journal proves
+# that an agent reached it:
+#
+#   cli COMMAND NAME      a command line tool that talks to the service
+#   mcp SERVER NAME       a connected app (MCP server); SERVER is the part of
+#                         the tool name after "mcp__", matched as a prefix
+#                         ("codex_apps__sites" matches mcp__codex_apps__sites__…);
+#                         the claude_ai_ prefix of Claude's connectors is
+#                         optional ("gmail" matches mcp__claude_ai_Gmail__…)
+#   domain DOMAIN NAME    a URL on this domain or one of its subdomains, in a
+#                         command (curl, git clone…) or a web fetch
+#   icon SLUG NAME        the service's logo: SLUG is its name in Simple Icons
+#                         (simpleicons.org). Run scripts/brands.py after adding
+#                         one; a service without a logo shows its initials.
+#
+# NAME is the rest of the line. Several rules may give the same NAME: they
+# then count as one service. A connected app with no rule is shown under its
+# own server name; a domain with no rule is listed under Websites.
+# Compiled into the binary: after a change, run `cargo test` and rebuild.
+
+# ---- Command line tools ---------------------------------------------------
+cli gcloud Google Cloud
+cli gsutil Google Cloud
+cli bq Google Cloud
+cli aws AWS
+cli sam AWS
+cli az Azure
+cli wrangler Cloudflare
+cli cloudflared Cloudflare
+cli gh GitHub
+cli glab GitLab
+cli vercel Vercel
+cli netlify Netlify
+cli firebase Firebase
+cli heroku Heroku
+cli flyctl Fly.io
+cli fly Fly.io
+cli doctl DigitalOcean
+cli railway Railway
+cli supabase Supabase
+cli stripe Stripe
+cli eas Expo
+cli expo Expo
+cli twilio Twilio
+cli shopify Shopify
+cli sentry-cli Sentry
+cli doppler Doppler
+cli neonctl Neon
+cli turso Turso
+cli pscale PlanetScale
+cli pulumi Pulumi
+cli huggingface-cli Hugging Face
+cli hf Hugging Face
+
+# ---- Connected apps (MCP servers) -----------------------------------------
+mcp github GitHub
+mcp gitlab GitLab
+mcp cloudflare Cloudflare
+mcp gcp Google Cloud
+mcp aws AWS
+mcp notion Notion
+mcp slack Slack
+mcp linear Linear
+mcp figma Figma
+mcp supabase Supabase
+mcp vercel Vercel
+mcp stripe Stripe
+mcp sentry Sentry
+mcp codex_apps__sites ChatGPT Sites
+mcp codex_app Codex app
+mcp gmail Gmail
+mcp claude_ai_gmail Gmail
+mcp google_drive Google Drive
+mcp gdrive Google Drive
+mcp claude_ai_google_drive Google Drive
+mcp google_calendar Google Calendar
+mcp claude_ai_google_calendar Google Calendar
+mcp claude_ai_slack Slack
+mcp claude_ai_notion Notion
+mcp claude_ai_linear Linear
+mcp claude_ai_github GitHub
+mcp atlassian Atlassian
+mcp jira Atlassian
+mcp confluence Atlassian
+mcp asana Asana
+mcp hubspot HubSpot
+mcp intercom Intercom
+mcp airtable Airtable
+mcp zapier Zapier
+mcp shopify Shopify
+mcp paypal PayPal
+mcp twilio Twilio
+mcp resend Resend
+mcp cloudinary Cloudinary
+mcp neon Neon
+mcp firebase Firebase
+mcp playwright Playwright
+
+# ---- Domains --------------------------------------------------------------
+domain github.com GitHub
+domain githubusercontent.com GitHub
+domain gitlab.com GitLab
+domain cloudflare.com Cloudflare
+domain workers.dev Cloudflare
+domain googleapis.com Google Cloud
+domain cloud.google.com Google Cloud
+domain amazonaws.com AWS
+domain azure.com Azure
+domain vercel.com Vercel
+domain vercel.app Vercel
+domain netlify.app Netlify
+domain firebaseio.com Firebase
+domain supabase.co Supabase
+domain stripe.com Stripe
+domain npmjs.org npm
+domain npmjs.com npm
+domain pypi.org PyPI
+domain pythonhosted.org PyPI
+domain crates.io crates.io
+domain docker.io Docker Hub
+domain openai.com OpenAI
+domain oaiusercontent.com OpenAI
+domain chatgpt.site ChatGPT Sites
+domain chatgpt-team.site ChatGPT Sites
+domain anthropic.com Anthropic
+domain expo.dev Expo
+domain mail.google.com Gmail
+domain gmail.googleapis.com Gmail
+domain drive.google.com Google Drive
+domain docs.google.com Google Drive
+domain calendar.google.com Google Calendar
+domain slack.com Slack
+domain notion.so Notion
+domain linear.app Linear
+domain atlassian.net Atlassian
+domain sentry.io Sentry
+domain twilio.com Twilio
+domain shopify.com Shopify
+domain myshopify.com Shopify
+domain paypal.com PayPal
+domain huggingface.co Hugging Face
+domain figma.com Figma
+
+# ---- More command line tools ----------------------------------------------
+cli render Render
+cli hcloud Hetzner
+cli scw Scaleway
+cli fastly Fastly
+cli b2 Backblaze
+cli aliyun Alibaba Cloud
+cli algolia Algolia
+cli circleci CircleCI
+cli snyk Snyk
+cli sanity Sanity
+cli appwrite Appwrite
+cli convex Convex
+cli databricks Databricks
+cli snow Snowflake
+cli snowsql Snowflake
+cli confluent Confluent
+cli auth0 Auth0
+cli bw Bitwarden
+cli vault HashiCorp Vault
+cli replicate Replicate
+cli kaggle Kaggle
+cli upstash Upstash
+cli datadog-ci Datadog
+cli temporal Temporal
+cli tcld Temporal
+
+# ---- More connected apps (MCP) --------------------------------------------
+mcp discord Discord
+mcp telegram Telegram
+mcp trello Trello
+mcp clickup ClickUp
+mcp dropbox Dropbox
+mcp algolia Algolia
+mcp mongodb MongoDB
+mcp datadog Datadog
+mcp grafana Grafana
+mcp posthog PostHog
+mcp todoist Todoist
+mcp miro Miro
+mcp webflow Webflow
+mcp calendly Calendly
+mcp zendesk Zendesk
+mcp postman Postman
+mcp mailchimp Mailchimp
+mcp sanity Sanity
+mcp contentful Contentful
+mcp mixpanel Mixpanel
+mcp snowflake Snowflake
+mcp databricks Databricks
+mcp upstash Upstash
+mcp convex Convex
+mcp auth0 Auth0
+mcp clerk Clerk
+mcp bitbucket Bitbucket
+mcp google_sheets Google Sheets
+mcp deepwiki DeepWiki
+mcp context7 Context7
+mcp render Render
+mcp netlify Netlify
+mcp railway Railway
+mcp digitalocean DigitalOcean
+mcp planetscale PlanetScale
+mcp pulumi Pulumi
+mcp huggingface Hugging Face
+mcp hugging_face Hugging Face
+mcp kaggle Kaggle
+mcp replicate Replicate
+mcp perplexity Perplexity
+mcp youtube YouTube
+mcp reddit Reddit
+mcp stackoverflow Stack Overflow
+mcp zoom Zoom
+mcp wordpress WordPress
+mcp revenuecat RevenueCat
+mcp lemonsqueezy Lemon Squeezy
+mcp paddle Paddle
+mcp coinbase Coinbase
+
+# ---- More domains ---------------------------------------------------------
+domain mongodb.net MongoDB
+domain mongodb.com MongoDB
+domain upstash.io Upstash
+domain datadoghq.com Datadog
+domain datadoghq.eu Datadog
+domain grafana.net Grafana
+domain grafana.com Grafana
+domain posthog.com PostHog
+domain discord.com Discord
+domain discordapp.com Discord
+domain api.telegram.org Telegram
+domain trello.com Trello
+domain clickup.com ClickUp
+domain dropbox.com Dropbox
+domain dropboxapi.com Dropbox
+domain youtube.com YouTube
+domain youtu.be YouTube
+domain reddit.com Reddit
+domain stackoverflow.com Stack Overflow
+domain algolia.net Algolia
+domain algolia.io Algolia
+domain elastic.co Elastic
+domain elastic-cloud.com Elastic
+domain circleci.com CircleCI
+domain brew.sh Homebrew
+domain rubygems.org RubyGems
+domain packagist.org Packagist
+domain nuget.org NuGet
+domain mailgun.net Mailgun
+domain mailgun.com Mailgun
+domain mailchimp.com Mailchimp
+domain brevo.com Brevo
+domain sendinblue.com Brevo
+domain replicate.com Replicate
+domain mistral.ai Mistral AI
+domain perplexity.ai Perplexity
+domain ollama.com Ollama
+domain langchain.com LangChain
+domain convex.dev Convex
+domain convex.cloud Convex
+domain appwrite.io Appwrite
+domain snyk.io Snyk
+domain codecov.io Codecov
+domain zoom.us Zoom
+domain meet.google.com Google Meet
+domain calendly.com Calendly
+domain zendesk.com Zendesk
+domain miro.com Miro
+domain webflow.com Webflow
+domain wordpress.com WordPress
+domain contentful.com Contentful
+domain ctfassets.net Contentful
+domain sanity.io Sanity
+domain mixpanel.com Mixpanel
+domain google-analytics.com Google Analytics
+domain analytics.google.com Google Analytics
+domain hetzner.com Hetzner
+domain hetzner.cloud Hetzner
+domain ovh.com OVHcloud
+domain ovhcloud.com OVHcloud
+domain scaleway.com Scaleway
+domain scw.cloud Scaleway
+domain fastly.com Fastly
+domain backblazeb2.com Backblaze
+domain aliyuncs.com Alibaba Cloud
+domain appstoreconnect.apple.com App Store
+domain play.google.com Google Play
+domain bitwarden.com Bitwarden
+domain okta.com Okta
+domain auth0.com Auth0
+domain clerk.com Clerk
+domain clerk.dev Clerk
+domain hashicorp.cloud HashiCorp Vault
+domain bitbucket.org Bitbucket
+domain codeberg.org Codeberg
+domain sheets.google.com Google Sheets
+domain todoist.com Todoist
+domain snowflakecomputing.com Snowflake
+domain databricks.com Databricks
+domain clickhouse.cloud ClickHouse
+domain neo4j.io Neo4j
+domain cockroachlabs.cloud CockroachDB
+domain temporal.io Temporal
+domain tmprl.cloud Temporal
+domain lemonsqueezy.com Lemon Squeezy
+domain paddle.com Paddle
+domain revenuecat.com RevenueCat
+domain wise.com Wise
+domain coinbase.com Coinbase
+domain binance.com Binance
+domain alchemy.com Alchemy
+domain render.com Render
+domain onrender.com Render
+domain generativelanguage.googleapis.com Gemini
+domain gemini.google.com Gemini
+domain claude.ai Claude
+domain postman.com Postman
+domain getpostman.com Postman
+domain kaggle.com Kaggle
+domain confluent.cloud Confluent
+domain deepwiki.com DeepWiki
+domain context7.com Context7
+domain neon.tech Neon
+domain turso.tech Turso
+domain turso.io Turso
+domain planetscale.com PlanetScale
+domain pulumi.com Pulumi
+domain railway.app Railway
+domain fly.io Fly.io
+domain fly.dev Fly.io
+domain digitalocean.com DigitalOcean
+domain heroku.com Heroku
+domain herokuapp.com Heroku
+domain notion.com Notion
+domain airtable.com Airtable
+domain asana.com Asana
+domain hubapi.com HubSpot
+domain hubspot.com HubSpot
+domain intercom.io Intercom
+domain zapier.com Zapier
+domain resend.com Resend
+domain cloudinary.com Cloudinary
+domain sentry.dev Sentry
+domain expo.io Expo
+domain docker.com Docker Hub
+domain ghcr.io GitHub
+domain upstash.com Upstash
+
+# ---- Logos (Simple Icons slugs) -------------------------------------------
+# No logo for AWS, Azure, Slack, OpenAI, Heroku, Twilio: their owners had
+# them removed from Simple Icons. They keep their initials.
+icon googlecloud Google Cloud
+icon cloudflare Cloudflare
+icon github GitHub
+icon gitlab GitLab
+icon vercel Vercel
+icon netlify Netlify
+icon firebase Firebase
+icon flydotio Fly.io
+icon digitalocean DigitalOcean
+icon railway Railway
+icon supabase Supabase
+icon stripe Stripe
+icon expo Expo
+icon shopify Shopify
+icon sentry Sentry
+icon neon Neon
+icon turso Turso
+icon planetscale PlanetScale
+icon pulumi Pulumi
+icon huggingface Hugging Face
+icon notion Notion
+icon linear Linear
+icon figma Figma
+icon gmail Gmail
+icon googledrive Google Drive
+icon googlecalendar Google Calendar
+icon atlassian Atlassian
+icon asana Asana
+icon hubspot HubSpot
+icon intercom Intercom
+icon airtable Airtable
+icon zapier Zapier
+icon paypal PayPal
+icon resend Resend
+icon cloudinary Cloudinary
+icon npm npm
+icon pypi PyPI
+icon docker Docker Hub
+icon anthropic Anthropic
+icon claude Claude
+icon googlegemini Gemini
+icon mongodb MongoDB
+icon upstash Upstash
+icon datadog Datadog
+icon grafana Grafana
+icon posthog PostHog
+icon discord Discord
+icon telegram Telegram
+icon trello Trello
+icon clickup ClickUp
+icon dropbox Dropbox
+icon youtube YouTube
+icon reddit Reddit
+icon stackoverflow Stack Overflow
+icon algolia Algolia
+icon elastic Elastic
+icon circleci CircleCI
+icon homebrew Homebrew
+icon rubygems RubyGems
+icon nuget NuGet
+icon mailgun Mailgun
+icon mailchimp Mailchimp
+icon brevo Brevo
+icon replicate Replicate
+icon mistralai Mistral AI
+icon perplexity Perplexity
+icon ollama Ollama
+icon langchain LangChain
+icon convex Convex
+icon appwrite Appwrite
+icon snyk Snyk
+icon codecov Codecov
+icon zoom Zoom
+icon googlemeet Google Meet
+icon calendly Calendly
+icon zendesk Zendesk
+icon miro Miro
+icon webflow Webflow
+icon wordpress WordPress
+icon contentful Contentful
+icon mixpanel Mixpanel
+icon googleanalytics Google Analytics
+icon hetzner Hetzner
+icon ovh OVHcloud
+icon scaleway Scaleway
+icon fastly Fastly
+icon backblaze Backblaze
+icon alibabacloud Alibaba Cloud
+icon appstore App Store
+icon googleplay Google Play
+icon bitwarden Bitwarden
+icon okta Okta
+icon auth0 Auth0
+icon clerk Clerk
+icon vault HashiCorp Vault
+icon bitbucket Bitbucket
+icon codeberg Codeberg
+icon googlesheets Google Sheets
+icon todoist Todoist
+icon snowflake Snowflake
+icon databricks Databricks
+icon clickhouse ClickHouse
+icon neo4j Neo4j
+icon cockroachlabs CockroachDB
+icon temporal Temporal
+icon lemonsqueezy Lemon Squeezy
+icon paddle Paddle
+icon revenuecat RevenueCat
+icon wise Wise
+icon coinbase Coinbase
+icon binance Binance
+icon alchemy Alchemy
+icon render Render
+icon postman Postman
+icon kaggle Kaggle

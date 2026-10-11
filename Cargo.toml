@@ -1,0 +1,19 @@
+[package]
+name = "agentledger"
+version = "0.7.4"
+authors = ["Yassine Bouayyad"]
+edition = "2021"
+description = "Local, private log of what AI coding agents (Codex, Claude Code) do on your machine"
+license = "MIT"
+rust-version = "1.89"
+
+# No third-party crates on purpose: the collector runs on every agent action,
+# so everything it executes should be auditable in this repository. SQLite is
+# the system library (libsqlite3), linked dynamically.
+[dependencies]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

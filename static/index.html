@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AgentLedger</title><link rel="stylesheet" href="/style.css"><script defer src="/brands.js"></script><script defer src="/app.js"></script></head>
+<body>
+<aside class="rail">
+  <a class="brand" href="/"><span class="mark">◈</span> AgentLedger</a>
+  <nav class="pages" aria-label="Pages">
+    <button class="page-link" data-page="overview" aria-current="page">Overview</button>
+    <button class="page-link" data-page="activity">Activity</button>
+  </nav>
+  <div class="agents">
+    <p class="rail-title">Agents</p>
+    <button type="button" class="agent" id="agent-codex" data-agent="codex" aria-pressed="false"><span class="swatch codex"></span><span class="agent-name">Codex</span><span class="count"></span></button>
+    <button type="button" class="agent" id="agent-claude-code" data-agent="claude-code" aria-pressed="false"><span class="swatch claude-code"></span><span class="agent-name">Claude Code</span><span class="count"></span></button>
+  </div>
+  <p class="rail-note">Everything here stays on this Mac. Prompts, outputs and file contents are never recorded.</p>
+  <p class="rail-status" id="setup"></p>
+</aside>
+
+<main>
+  <div id="demo-banner" class="banner" hidden>Demo data. Nothing here really happened, and it is kept apart from your log.</div>
+  <div id="collector-banner" class="banner" role="status" hidden></div>
+
+  <header class="top">
+    <div>
+      <h1 id="headline">Overview</h1>
+      <p id="summary" class="summary">Loading your log…</p>
+    </div>
+    <div class="top-actions">
+      <span id="connection" class="connection">Connecting…</span>
+      <button id="refresh" class="ghost">Refresh</button>
+    </div>
+  </header>
+
+  <div class="filterbar" role="group" aria-label="Filters">
+    <label class="field"><span>Period</span>
+      <select id="range">
+        <option value="today">Today</option>
+        <option value="7d" selected>Last 7 days</option>
+        <option value="30d">Last 30 days</option>
+        <option value="90d">Last 90 days</option>
+        <option value="all">All time</option>
+        <option value="custom">Custom dates…</option>
+      </select>
+    </label>
+    <span id="custom-range" class="custom-range" hidden>
+      <label class="field"><span>From</span><input id="from" type="date"></label>
+      <label class="field"><span>To</span><input id="to" type="date"></label>
+    </span>
+    <label class="field"><span>Agent</span>
+      <select id="agent-filter">
+        <option value="">All agents</option>
+        <option value="codex">Codex</option>
+        <option value="claude-code">Claude Code</option>
+      </select>
+    </label>
+    <label class="field"><span>Project</span>
+      <select id="project-filter"><option value="">All projects</option></select>
+    </label>
+    <label class="field activity-only"><span>Service</span>
+      <select id="service-filter"><option value="">All services</option></select>
+    </label>
+    <label class="field activity-only"><span>Result</span>
+      <select id="status-filter">
+        <option value="">All results</option>
+        <option value="problem">Failed or denied</option>
+        <option value="waiting">Needed approval</option>
+        <option value="ok">Done</option>
+        <option value="done">No status reported</option>
+      </select>
+    </label>
+    <label class="field activity-only grow"><span>Search</span>
+      <input id="search" type="search" placeholder="Commands, files, sites…">
+    </label>
+  </div>
+  <div id="active-filters" class="active-filters" role="group" aria-label="Active filters" hidden></div>
+
+  <section id="page-overview" class="page" aria-label="Overview">
+    <div id="overview"></div>
+  </section>
+
+  <section id="page-activity" class="page" aria-label="Activity" hidden>
+    <div class="layout">
+      <section class="timeline" aria-label="Timeline">
+        <div class="kinds" role="group" aria-label="Show">
+          <button class="kind" data-kind="" aria-pressed="true">Everything</button>
+          <button class="kind" data-kind="shell" aria-pressed="false">Commands</button>
+          <button class="kind" data-kind="edit" aria-pressed="false">File changes</button>
+          <button class="kind" data-kind="read" aria-pressed="false">Reading &amp; search</button>
+          <button class="kind" data-kind="web" aria-pressed="false">Web</button>
+          <button class="kind" data-kind="mcp" aria-pressed="false">Connected apps</button>
+          <button class="kind" data-kind="app" aria-pressed="false">Applications</button>
+          <button class="kind" data-kind="secret" aria-pressed="false">Secrets</button>
+          <button class="kind" data-kind="attention" aria-pressed="false">Worth a look</button>
+        </div>
+        <div id="events" aria-live="polite"></div>
+        <button id="more" class="ghost more" hidden>Load earlier activity</button>
+      </section>
+
+      <aside class="details" id="detail-panel" aria-label="Details">
+        <div id="detail"><div class="placeholder"><p>Select an action to see what the agent did, where, and what happened.</p></div></div>
+      </aside>
+    </div>
+  </section>
+</main>
+</body></html>

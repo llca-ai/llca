@@ -1,0 +1,182 @@
+# AgentLedger redaction rules
+#
+# These rules decide what is masked before an event is written to the journal.
+# They are compiled into the binary: after a change, run `cargo test` (every
+# rule must keep rules/cases.txt passing), rebuild, then `agentledger redact`
+# to apply the new rules to events already recorded.
+#
+# Found something that slipped through? `agentledger audit` lists values that
+# look like secrets in your journal. Add a rule here AND a case in
+# rules/cases.txt that proves it, then open a pull request.
+#
+# Rules can only ADD masking: there is no way to exempt a value.
+#
+# Pattern syntax (used by field, key, label and token prefixes):
+#   abc       literal characters
+#   [ée]      one character from a set; ranges allowed: [A-Za-z0-9_-]
+#   .         any one character
+#   x?        the previous character or set is optional
+#   (space)   in a label: an optional separator, one of " ", "_" or "-"
+# field, key and label patterns ignore case; token prefixes are case-sensitive.
+
+# ---------------------------------------------------------------------------
+# field PATTERN
+# A field of the agent's arguments whose NAME contains PATTERN holds a
+# credential: its whole value becomes [REDACTED].
+# Counters such as max_tokens or tokens_used are never treated as secrets.
+field password
+field passwd
+field secret
+field token
+field authorization
+field cookie
+field credential
+field api.?key
+field private.?key
+field passphrase
+field _pass
+field encryption.?key
+field signing.?key
+field master.?key
+
+# ---------------------------------------------------------------------------
+# key PATTERN
+# In free text (a command, a JSON string inside an argument), a word that
+# contains PATTERN, followed by = or : and a value, or used as a --flag before
+# a value, has its value masked:
+#   TOKEN=abc   --password abc   "token": "abc"   \"token\":\"abc\"
+# Prose is left alone: "fix secret handling" has no = or : after the word.
+key password
+key passwd
+key secret
+key token
+key api.?key
+key credential
+key passphrase
+key _pass
+key private.?key
+key encryption.?key
+key signing.?key
+key master.?key
+
+# ---------------------------------------------------------------------------
+# label PATTERN
+# Human labels followed by = or : and a value, in any language:
+#   "mot de passe : hunter2"   "mdp=abc"   "clé API: xyz"
+# A space in the pattern matches " ", "_", "-" or nothing.
+label mots? de passe
+label mdp
+label pass                 # openssl -pass pass:VALUE, PASS=VALUE
+label jetons?
+label cl[ée]s? api
+label cl[ée]s? secr[èe]tes?
+label cl[ée]s? priv[ée]es?
+
+# ---------------------------------------------------------------------------
+# header NAME
+# An HTTP header whose whole value is a credential, up to the end of the line
+# or the closing quote: "Cookie: a=1; b=2" becomes "Cookie: [REDACTED]".
+# Names ignore case. (Authorization: Bearer … keeps its scheme, see the code.)
+header authorization
+header proxy-authorization
+header cookie
+header set-cookie
+
+# ---------------------------------------------------------------------------
+# url-param NAME
+# A URL query parameter that carries a signature or a credential:
+# ?sig=abc becomes ?sig=[REDACTED]. Also found inside an encoded URL (after
+# %3F or %26, as in a redirect address) and after an HTML-escaped &amp;.
+# Names ignore case.
+url-param sig
+url-param signature
+url-param x-amz-signature
+url-param x-amz-security-token
+url-param x-amz-credential
+url-param x-goog-signature
+url-param x-goog-credential
+url-param token
+url-param access_token
+url-param id_token
+url-param refresh_token
+url-param client_secret
+url-param code
+url-param apikey
+url-param api_key
+url-param key
+
+# ---------------------------------------------------------------------------
+# token PREFIX LENGTH CHARACTERS
+# A credential recognisable by its format, anywhere in text, starting at the
+# beginning of a word: PREFIX, then LENGTH characters from CHARACTERS.
+# LENGTH is a minimum (12) or an exact range (16-16). The comment after the
+# rule names the credential in the dashboard ("A GitHub token went through…").
+# JSON Web Tokens (eyJ….eyJ….sig) are recognised by the code.
+token sk- 12 [A-Za-z0-9_-]                  # OpenAI or Anthropic API key
+token gh[pousr]_ 12 [A-Za-z0-9]             # GitHub token
+token github_pat_ 12 [A-Za-z0-9_]           # GitHub token
+token AIza 20 [A-Za-z0-9_-]                 # Google API key
+token ya29. 10 [A-Za-z0-9_-]                # Google OAuth token
+token AKIA 16-16 [A-Z0-9]                   # AWS access key
+token xox[abposr]- 10 [A-Za-z0-9-]          # Slack token
+token [sr]k_live_ 10 [A-Za-z0-9]            # Stripe key
+token [sr]k_test_ 10 [A-Za-z0-9]            # Stripe key
+token whsec_ 10 [A-Za-z0-9]                 # Stripe webhook secret
+token glpat- 16 [A-Za-z0-9_-]               # GitLab token
+token npm_ 20 [A-Za-z0-9]                   # npm token
+token hf_ 20 [A-Za-z0-9]                    # Hugging Face token
+token GOCSPX- 20 [A-Za-z0-9_-]              # Google OAuth client secret
+token SG[.] 16 [A-Za-z0-9_.-]               # SendGrid API key
+token pypi- 40 [A-Za-z0-9_-]                # PyPI token
+token do[opr]_v1_ 40 [a-f0-9]               # DigitalOcean token
+token shp[acps][a-z]_ 20 [a-fA-F0-9]        # Shopify token
+token sbp_ 32 [a-f0-9]                      # Supabase token
+token xai- 20 [A-Za-z0-9]                   # xAI API key
+token gsk_ 20 [A-Za-z0-9]                   # Groq API key
+token r8_ 20 [A-Za-z0-9]                    # Replicate token
+token lin_api_ 20 [A-Za-z0-9]               # Linear API key
+token ntn_ 20 [A-Za-z0-9]                   # Notion token
+token secret_ 40 [A-Za-z0-9]                # Notion token
+token hv[sbr][.] 20 [A-Za-z0-9_-]           # Vault token
+token PMAK- 20 [A-Za-z0-9-]                 # Postman API key
+token ATATT3 20 [A-Za-z0-9_=-]              # Atlassian API token
+token SK 32-32 [0-9a-f]                     # Twilio API key
+token key- 32-32 [0-9a-f]                   # Mailgun API key
+
+# ---------------------------------------------------------------------------
+# password-option FLAG [glued] [with=WORD] PROGRAM…
+# An option that carries a password, for the programs listed only (elsewhere
+# -p means something else: mkdir -p, docker run -p 8080:80).
+#   glued      the password is stuck to the option: mysql -pSECRET
+#              (otherwise it is the next word: redis-cli -a SECRET)
+#   with=WORD  the command must also contain WORD: docker login -p SECRET
+# Long options such as --password need no rule: see `key` above.
+password-option -p glued mysql mysqldump mysqladmin mariadb mariadb-dump
+password-option -p with=login docker podman nerdctl buildah helm oras skopeo
+password-option -a redis-cli
+
+# ---------------------------------------------------------------------------
+# omit FIELD
+# A field whose value is content, not a command: it is never kept and
+# becomes [CONTENT NOT KEPT]. Exact field name, ignoring case.
+omit content
+omit contents
+omit body
+omit text
+omit prompt
+omit code
+omit script
+omit stdin
+omit chars                 # text typed into a running process (Codex write_stdin)
+omit stdout
+omit stderr
+omit output
+omit patch
+omit diff
+omit image
+omit data
+omit tool_response
+omit last_assistant_message
+omit old_string
+omit new_string
+omit new_source
