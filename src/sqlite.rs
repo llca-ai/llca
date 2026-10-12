@@ -37,6 +37,7 @@ extern "C" {
     fn sqlite3_column_bytes(stmt: *mut sqlite3_stmt, i: c_int) -> c_int;
     fn sqlite3_finalize(stmt: *mut sqlite3_stmt) -> c_int;
     fn sqlite3_last_insert_rowid(db: *mut sqlite3) -> i64;
+    fn sqlite3_changes(db: *mut sqlite3) -> c_int;
 }
 
 #[derive(Debug)]
@@ -139,6 +140,11 @@ impl Connection {
                 _ => return Err(self.error()),
             }
         }
+    }
+
+    /// Rows changed by the last INSERT, UPDATE or DELETE.
+    pub fn changes(&self) -> i64 {
+        i64::from(unsafe { sqlite3_changes(self.db) })
     }
 
     pub fn query(&self, sql: &str, params: &[Param]) -> Result<Vec<Vec<Cell>>> {

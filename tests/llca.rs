@@ -1049,6 +1049,56 @@ fn codex_project_hooks_stay_out_of_git() {
 }
 
 #[test]
+fn old_events_are_deleted_after_the_retention_period() {
+    let t = Temp::new();
+    let at = |days_ago: i64| util::iso_from_micros(util::now_micros() - days_ago * 86_400_000_000);
+    let add = |days_ago: i64| record(&t.data(), &payload("PreToolUse"), "hook", "codex", Some(&at(days_ago))).unwrap();
+    for d in [200, 120, 91, 89, 10, 0] {
+        add(d);
+    }
+    // 90 days by default.
+    assert_eq!(store::retention_days(&t.data()), Some(90));
+    assert_eq!(store::prune(&t.data(), Some(2)).unwrap(), 2);
+    assert_eq!(store::prune(&t.data(), None).unwrap(), 1);
+    assert_eq!(all(&t.data()).len(), 3);
+    // `llca retention` shows and changes it; a shorter period applies at once.
+    let cli = |args: &[&str]| {
+        let out = Command::new(BIN).arg("--data-dir").arg(t.data()).args(args).output().unwrap();
+        (out.status.code().unwrap_or(-1), String::from_utf8_lossy(&out.stdout).to_string())
+    };
+    assert!(cli(&["retention"]).1.contains("last 90 days"));
+    let (code, out) = cli(&["retention", "30"]);
+    assert_eq!(code, 0);
+    assert!(out.contains("last 30 days") && out.contains("Deleted 1 older events"), "{out}");
+    assert_eq!(all(&t.data()).len(), 2);
+    // Off: nothing is deleted any more.
+    assert!(cli(&["retention", "off"]).1.contains("keeps every event"));
+    add(400);
+    assert_eq!(store::prune(&t.data(), None).unwrap(), 0);
+    assert_eq!(cli(&["retention", "abc"]).0, 2);
+    assert_eq!(cli(&["retention", "0"]).0, 2);
+    // The collector deletes old events itself, at most once an hour.
+    cli(&["retention", "90"]);
+    add(400);
+    let hook = |id: &str| {
+        let input = with(payload("PreToolUse"), "tool_use_id", Value::str(id)).to_compact();
+        let data = t.data().to_string_lossy().to_string();
+        run_shell(&format!("{} --data-dir {} hook --adapter codex-v0", BIN, util::shell_quote(&data)), &input);
+    };
+    let _ = fs::remove_file(t.data().join("last-prune"));
+    hook("a");
+    let old = all(&t.data()).iter().filter(|r| r.get("received_at").and_then(Value::as_str).unwrap_or_default() < at(91).as_str()).count();
+    assert_eq!(old, 0, "the collector pruned the old events");
+    assert!(t.data().join("last-prune").exists());
+    add(400);
+    hook("b"); // within the hour: not again
+    assert_eq!(
+        all(&t.data()).iter().filter(|r| r.get("received_at").and_then(Value::as_str).unwrap_or_default() < at(91).as_str()).count(),
+        1
+    );
+}
+
+#[test]
 fn an_existing_data_folder_keeps_its_permissions() {
     use std::os::unix::fs::PermissionsExt;
     let t = Temp::new();

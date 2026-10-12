@@ -21,7 +21,7 @@ You need Rust (`brew install rust` or [rustup](https://rustup.rs)) and:
   - Arch: `sudo pacman -S base-devel sqlite`
 
 ```sh
-cargo test                       # 61 tests
+cargo test                       # 62 tests
 cargo build --release            # → target/release/llca
 ./target/release/llca demo
 ```
@@ -29,7 +29,7 @@ cargo build --release            # → target/release/llca
 With Homebrew (local tap, nothing published):
 
 ```sh
-sh scripts/package.sh            # tests, builds dist/llca-0.7.5.tar.gz, writes Formula/, updates the local tap
+sh scripts/package.sh            # tests, builds dist/llca-0.7.6.tar.gz, writes Formula/, updates the local tap
 brew reinstall local/llca/llca    # or: brew install local/llca/llca
 llca init --global --agent all
 llca doctor
@@ -56,6 +56,7 @@ On Linux, the dashboard and the rules file open with `xdg-open`. Application ico
 llca init --global [--agent codex|claude|all]      # default: codex
 llca init --project /path/to/project [--agent …]   # hooks for one project only
 llca doctor [--project PATH] [--agent …] [--json]   # checkup: what works, what to fix (exit code 1 if anything)
+llca retention [DAYS | off]                        # how long events are kept (default: 90 days)
 llca logs [--json] [--search TEXT] [--session ID] [--agent codex|claude] [--limit N]
 llca open [--port N] [--no-browser]                 # dashboard, until Ctrl+C
 llca demo                                           # dashboard with sample data
@@ -130,7 +131,9 @@ Redaction is best-effort: a command can still embed something unrecognised. Two 
 
 To add a rule, see [CONTRIBUTING.md](CONTRIBUTING.md): one line in the rules file, one case in the cases file, `cargo test`.
 
-Files are private to your user (folders `0700`, files `0600`). The database is not encrypted, and there is no automatic retention yet.
+Files are private to your user (folders `0700`, files `0600`). The database is not encrypted.
+
+**Retention.** Events older than **90 days** are deleted, and their text is overwritten in the file. The collector deletes a few at a time, at most once an hour, so that no agent waits; `llca open` deletes the whole backlog when it starts. `llca retention` shows the setting, `llca retention 30` keeps 30 days (older events are deleted at once), `llca retention off` keeps everything.
 
 ## Limits
 

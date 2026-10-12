@@ -1,6 +1,6 @@
 [package]
 name = "llca"
-version = "0.7.5"
+version = "0.7.6"
 authors = ["Yassine Bouayyad"]
 edition = "2021"
 description = "Local Ledger for Coding Agents: a local, private log of what Codex and Claude Code do on your machine"

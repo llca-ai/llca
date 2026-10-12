@@ -213,6 +213,62 @@ pub fn connect(data_dir: &Path) -> Result<Connection, Error> {
     Ok(con)
 }
 
+// ---------- Retention ----------
+
+/// Events older than this many days are deleted, unless the user changes it
+/// with `llca retention` (kept in the file RETENTION_FILE of the data folder).
+pub const DEFAULT_RETENTION_DAYS: i64 = 90;
+const RETENTION_FILE: &str = "retention";
+/// When the collector last deleted old events (its modification time).
+const PRUNED_FILE: &str = "last-prune";
+
+/// Days of events kept, or None when nothing is ever deleted ("off").
+pub fn retention_days(data_dir: &Path) -> Option<i64> {
+    match fs::read_to_string(data_dir.join(RETENTION_FILE)) {
+        Ok(text) => match text.trim() {
+            "off" => None,
+            n => Some(n.parse::<i64>().ok().filter(|d| (1..=36_500).contains(d)).unwrap_or(DEFAULT_RETENTION_DAYS)),
+        },
+        Err(_) => Some(DEFAULT_RETENTION_DAYS),
+    }
+}
+
+pub fn set_retention(data_dir: &Path, days: Option<i64>) -> std::io::Result<()> {
+    util::private_dir(data_dir)?;
+    let text = days.map_or("off".to_string(), |d| d.to_string());
+    util::atomic_write(&data_dir.join(RETENTION_FILE), format!("{text}\n").as_bytes(), 0o600)
+}
+
+/// Delete the events older than the retention period, at most `limit` of
+/// them (all when None). Deleted text is overwritten (secure_delete), as the
+/// events may hold commands. Returns how many were deleted.
+pub fn prune(data_dir: &Path, limit: Option<i64>) -> Result<usize, Error> {
+    let Some(days) = retention_days(data_dir) else { return Ok(0) };
+    let cutoff = util::iso_from_micros(util::now_micros() - days * 86_400_000_000);
+    let con = connect(data_dir)?;
+    con.query("PRAGMA secure_delete=ON", &[])?;
+    match limit {
+        Some(n) => con.execute(
+            "DELETE FROM events WHERE id IN (SELECT id FROM events WHERE received_at < ? ORDER BY id LIMIT ?)",
+            &[Param::Text(&cutoff), Param::Int(n)],
+        )?,
+        None => con.execute("DELETE FROM events WHERE received_at < ?", &[Param::Text(&cutoff)])?,
+    };
+    Ok(con.changes().max(0) as usize)
+}
+
+/// Called by the collector: at most once an hour, delete up to 2,000 old
+/// events, so that the journal keeps its size without slowing any agent
+/// (a large backlog goes in steps, or at once when the dashboard starts).
+pub fn prune_if_due(data_dir: &Path) {
+    let marker = data_dir.join(PRUNED_FILE);
+    let due = fs::metadata(&marker).and_then(|m| m.modified()).map_or(true, |t| t.elapsed().map_or(true, |e| e.as_secs() >= 3600));
+    if due && retention_days(data_dir).is_some() {
+        let _ = util::atomic_write(&marker, b"", 0o600);
+        let _ = prune(data_dir, Some(2000));
+    }
+}
+
 /// Normalise and store one event. `at` overrides the timestamp (demo data only).
 pub fn record(data_dir: &Path, payload: &Value, origin: &str, agent: &str, at: Option<&str>) -> Result<i64, Error> {
     let mut row = normalize(payload, origin, agent)?;

@@ -203,6 +203,20 @@ fn assess(report: &Value, target: &str, now: i64) -> (Vec<Line>, Vec<Problem>) {
         }
     }
 
+    // Retention.
+    if journal.is_some() {
+        let text = match report.get("retention_days").and_then(Value::as_integer) {
+            Some(d) => format!("Last {d} days kept"),
+            None => "Off: every event is kept".to_string(),
+        };
+        lines.push(Line {
+            mark: Mark::Ok,
+            name: "Retention".into(),
+            text,
+            notes: vec!["Change it with: llca retention DAYS (or off)".into()],
+        });
+    }
+
     // Your rules (watch.rules).
     if let Some(w) = report.get("watch").filter(|w| w.get("exists").and_then(Value::as_bool).unwrap_or(false)) {
         let count = int(w.get("rules"));

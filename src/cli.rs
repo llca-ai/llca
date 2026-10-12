@@ -28,6 +28,7 @@ Commands:
   demo       Dashboard with sample data  [--port N] [--no-browser]
   redact     Apply the current secret redaction to events already recorded
   audit      List recorded values that look like secrets, with the rule to add
+  retention  Show or set how long events are kept    [DAYS | off]  (default: 90 days)
 
 Options:
   --data-dir PATH     Private location of the log (default: $LLCA_HOME, else
@@ -65,6 +66,8 @@ struct Args {
     limit: i64,
     port: u16,
     no_browser: bool,
+    /// `llca retention DAYS|off`.
+    retention: Option<String>,
 }
 
 fn parse_args(raw: Vec<String>) -> Result<Option<Args>, UsageError> {
@@ -117,8 +120,15 @@ fn parse_args(raw: Vec<String>) -> Result<Option<Args>, UsageError> {
                 args.port = v.parse().map_err(|_| UsageError(format!("argument --port: invalid int value: '{v}'")))?;
             }
             "--no-browser" if allowed(&["open", "demo"]) => args.no_browser = true,
+            value if cmd == "retention" && args.retention.is_none() && !value.starts_with('-') => {
+                let ok = value == "off" || value.parse::<i64>().is_ok_and(|d| (1..=36_500).contains(&d));
+                if !ok {
+                    return Err(UsageError(format!("retention: '{value}' is not a number of days (1 to 36500) or 'off'")));
+                }
+                args.retention = Some(value.to_string());
+            }
             name if cmd.is_empty() && !name.starts_with('-') => {
-                if !["hook", "init", "uninstall", "doctor", "logs", "open", "demo", "redact", "audit"].contains(&name) {
+                if !["hook", "init", "uninstall", "doctor", "logs", "open", "demo", "redact", "audit", "retention"].contains(&name) {
                     return Err(UsageError(format!("invalid command: '{name}'")));
                 }
                 args.command = name.to_string();
@@ -247,6 +257,7 @@ fn collect(data_dir: &Path, adapter: &str) -> i32 {
         let text = std::str::from_utf8(&raw).map_err(|_| "UnicodeDecodeError".to_string())?;
         let payload = json::parse(text).map_err(|_| "JSONDecodeError".to_string())?;
         store::record(data_dir, &payload, "hook", agent, None).map_err(|_| "RecordError".to_string())?;
+        store::prune_if_due(data_dir);
         Ok(())
     });
     let failure = match result {
@@ -365,6 +376,7 @@ fn run(args: Args) -> Result<i32, String> {
                 ("journal", store::stats(&data_dir).map_err(|e| e.to_string())?),
                 ("journal_path", data_dir.join("events.sqlite3").to_string_lossy().into_owned()),
                 ("data_dir_shared", util::open_to_others(&data_dir)),
+                ("retention_days", store::retention_days(&data_dir).map_or(Value::Null, Value::int)),
                 ("collector_errors", crate::doctor::collector_errors(&data_dir)),
                 ("watch", {
                     let (rules, exists) = crate::watch::load(&data_dir);
@@ -408,7 +420,33 @@ fn run(args: Args) -> Result<i32, String> {
             Ok(if problems == 0 { 0 } else { 1 })
         }
         "logs" => print_logs(&data_dir, &args).map(|_| 0),
-        "open" => serve(&data_dir, &args, false).map(|_| 0),
+        "open" => {
+            // The whole backlog of old events at once (the collector only
+            // deletes a few at a time, to stay fast).
+            let _ = store::prune(&data_dir, None);
+            serve(&data_dir, &args, false).map(|_| 0)
+        }
+        "retention" => {
+            let show = |days: Option<i64>| match days {
+                Some(d) => format!("llca keeps the last {d} days of events; older ones are deleted."),
+                None => "llca keeps every event (retention is off).".to_string(),
+            };
+            match args.retention.as_deref() {
+                None => {
+                    println!("{}\nChange it with: llca retention DAYS (or: llca retention off)", show(store::retention_days(&data_dir)))
+                }
+                Some(value) => {
+                    let days = if value == "off" { None } else { value.parse().ok() };
+                    store::set_retention(&data_dir, days).map_err(|e| e.to_string())?;
+                    println!("{}", show(days));
+                    let deleted = store::prune(&data_dir, None).map_err(|e| e.to_string())?;
+                    if deleted > 0 {
+                        println!("Deleted {deleted} older events.");
+                    }
+                }
+            }
+            Ok(0)
+        }
         "audit" => {
             let report = crate::audit::audit(&data_dir).map_err(|e| e.to_string())?;
             print!("{}", crate::audit::render(&report));
