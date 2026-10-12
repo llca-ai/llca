@@ -167,10 +167,10 @@ function flagsFor(action) {
       if (pattern.test(action.full || action.object) && !(label === 'Pushes code to a remote' && flags.includes('Force-pushes code'))) flags.push(label);
     }
   }
-  // Known tools only: data leaving this Mac, and work that continues later.
+  // Known tools only: data leaving this computer, and work that continues later.
   // SendFeedback is not listed: it only drafts a report, sent if you choose.
   const tool = action.main.tool;
-  if (['Artifact', 'ShareOnboardingGuide'].includes(tool)) flags.push('Sends data outside this Mac');
+  if (['Artifact', 'ShareOnboardingGuide'].includes(tool)) flags.push('Sends data outside this computer');
   if (action.computer) flags.push('Controlled apps on your Mac');
   if (['CronCreate', 'ScheduleWakeup', 'RemoteTrigger'].includes(tool)) flags.push('Schedules something that runs later');
   if (action.status === 'failed') flags.push('It failed');
@@ -643,7 +643,7 @@ function renderTimeline() {
       empty.append(node('strong', 'No actions yet.'), node('p', 'Sessions were opened, but no agent action was recorded. Ask Codex or Claude Code to do something small, like running pwd.'));
     } else {
       empty.append(node('strong', 'Your log starts here.'),
-        node('p', 'Start a new Codex or Claude Code session on this Mac and ask it to do something small, like running pwd. It will appear here within seconds.'),
+        node('p', 'Start a new Codex or Claude Code session on this computer and ask it to do something small, like running pwd. It will appear here within seconds.'),
         node('p', 'Not seeing anything? Run llca doctor in a terminal.', 'quiet'));
     }
     list.append(empty);
@@ -1074,7 +1074,7 @@ function renderOverview() {
     const empty = node('div', undefined, 'empty');
     empty.append(node('strong', 'Nothing in this period.'),
       node('p', state.status && !state.status.stats.events
-        ? 'Start a new Codex or Claude Code session on this Mac and ask it to do something small, like running pwd.'
+        ? 'Start a new Codex or Claude Code session on this computer and ask it to do something small, like running pwd.'
         : 'Pick a longer period or another agent or project.'));
     box.replaceChildren(empty);
     return;
@@ -1147,7 +1147,7 @@ function renderOverview() {
     ['Risky commands', risky, {kind: 'attention'}],
     ['Secrets seen by the agents', t.secrets, {kind: 'secret'}],
     ['Computer Use steps', computerSteps, {kind: 'app'}],
-    ['Data sent outside this Mac', toolCount(['Artifact', 'ShareOnboardingGuide']), {kind: 'attention'}],
+    ['Data sent outside this computer', toolCount(['Artifact', 'ShareOnboardingGuide']), {kind: 'attention'}],
     ['Scheduled to run later', toolCount(['CronCreate', 'ScheduleWakeup', 'RemoteTrigger']), {kind: 'attention'}],
   ].filter(r => r[1]);
   const lookCard = card('Worth a look', ov.commands_truncated ? 'Command checks cover the latest 5,000 commands.' : null);
@@ -1249,17 +1249,21 @@ function watchSection(w) {
   return out;
 }
 
+// "Show in Finder" on a Mac; on Linux, the file's folder opens.
+const finderLabel = () => (state.status && state.status.os && state.status.os !== 'macos' ? 'Show in folder' : 'Show in Finder');
+
 // Shows watch.rules in Finder: ~/Library is hidden there, so finding the
 // file by hand is not obvious.
 function revealRulesButton() {
-  const b = node('button', 'Show in Finder', 'link');
+  const label = finderLabel();
+  const b = node('button', label, 'link');
   b.onclick = async () => {
     try {
       await api('/api/watch/open?show=finder', 'POST');
     } catch (error) {
       b.textContent = 'Could not show it';
       b.title = error.message;
-      setTimeout(() => { b.textContent = 'Show in Finder'; }, 4000);
+      setTimeout(() => { b.textContent = label; }, 4000);
     }
   };
   return b;
@@ -1292,7 +1296,7 @@ function openRulesButton(cls) {
       // Say why, next to the button: the message from the server.
       b.textContent = 'Could not open it';
       b.title = error.message;
-      const why = node('span', error.message + '. Use “Show in Finder” or “Copy the path” below.', 'open-error');
+      const why = node('span', error.message + '. Use “' + finderLabel() + '” or “Copy the path” below.', 'open-error');
       b.after(why);
       setTimeout(() => why.remove(), 8000);
     }
@@ -2010,7 +2014,7 @@ async function moreMatches(page, params, gen) {
 }
 
 // ---------- Theme ----------
-// Auto follows the Mac; light or dark is kept in the data folder (the port,
+// Auto follows the system; light or dark is kept in the data folder (the port,
 // and so the browser's storage, changes at each launch). /theme.js applies
 // the saved choice before the page is drawn.
 function showTheme(theme) {

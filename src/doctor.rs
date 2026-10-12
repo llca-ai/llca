@@ -165,6 +165,16 @@ fn assess(report: &Value, target: &str, now: i64) -> (Vec<Line>, Vec<Problem>) {
     if let Some(j) = journal {
         let events = int(j.get("events"));
         let path = tilde(text(report.get("journal_path")));
+        // The folder llca creates is private; one chosen with --data-dir keeps its own permissions.
+        if report.get("data_dir_shared").and_then(Value::as_bool).unwrap_or(false) {
+            let folder = text(report.get("journal_path")).rsplit_once('/').map_or(String::new(), |(d, _)| d.to_string());
+            lines.push(Line {
+                mark: Mark::Warning,
+                name: "Folder".into(),
+                text: "Other users of this computer can open the journal's folder".into(),
+                notes: vec![format!("The files inside are private. To close the folder too: chmod 700 {}", util::shell_quote(&folder))],
+            });
+        }
         if events == 0 {
             let mark = if any_installed { Mark::Warning } else { Mark::Off };
             lines.push(Line { mark, name: "Journal".into(), text: "Empty".into(), notes: vec![path] });

@@ -230,9 +230,26 @@ pub fn resolve(p: &Path) -> PathBuf {
     clean
 }
 
+/// Make sure the folder exists. A folder llca creates is private to the user
+/// (0700); an existing one keeps its permissions, so that `--data-dir` or
+/// LLCA_HOME pointing at one of the user's own folders never changes it (the
+/// files llca writes inside are 0600 anyway). `doctor` warns when the folder
+/// is open to other users.
 pub fn private_dir(p: &Path) -> std::io::Result<()> {
-    fs::create_dir_all(p)?;
-    fs::set_permissions(p, fs::Permissions::from_mode(0o700))
+    match fs::metadata(p) {
+        Ok(m) if m.is_dir() => Ok(()),
+        Ok(_) => Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "not a folder")),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            fs::create_dir_all(p)?;
+            fs::set_permissions(p, fs::Permissions::from_mode(0o700))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// True when other users can read or enter the folder.
+pub fn open_to_others(p: &Path) -> bool {
+    fs::metadata(p).is_ok_and(|m| m.permissions().mode() & 0o077 != 0)
 }
 
 /// Write a file atomically (temporary file + rename) with the given mode.

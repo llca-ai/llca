@@ -2,20 +2,26 @@
 
 **Local Ledger for Coding Agents.** A **local, private** log of what **Codex** and **Claude Code** do on your machine: every tool call, in plain words, with a dashboard. One self-contained binary, no account, no server, nothing sent anywhere.
 
-Written in Rust (versions 0.1–0.2 were a Python prototype).
+Written in Rust (versions 0.1–0.2 were a Python prototype). Runs on **macOS** and **Linux**.
 
 ## Why Rust, and why no dependencies
 
-- **One binary, stable path.** `init` copies the binary to `~/Library/Application Support/llca/bin/llca` and the hooks call that copy. Upgrading Homebrew, Python or moving the source folder can no longer break the hooks.
+- **One binary, stable path.** `init` copies the binary into the data folder (`bin/llca`, see [Where the data lives](#where-the-data-lives)) and the hooks call that copy. Upgrading Homebrew, Python or moving the source folder can no longer break the hooks.
 - **Fast.** The collector runs on every agent action. It handles an event in about 3–5 ms (the Python version took 30–100 ms, mostly interpreter start-up).
-- **Nothing to audit but this repository.** There are no third-party crates: JSON, the HTTP server, secret redaction and SQLite bindings are written here (about 2,000 lines), and SQLite itself is the system library (`libsqlite3`, part of macOS). For a tool that sees what your agents run, that matters.
+- **Nothing to audit but this repository.** There are no third-party crates: JSON, the HTTP server, secret redaction and SQLite bindings are written here (about 2,000 lines), and SQLite itself is the system library (`libsqlite3`, part of macOS and of every Linux distribution). For a tool that sees what your agents run, that matters.
 
 ## Build and install
 
-You need Rust (`brew install rust` or [rustup](https://rustup.rs)) and the Xcode Command Line Tools.
+You need Rust (`brew install rust` or [rustup](https://rustup.rs)) and:
+
+- on **macOS**, the Xcode Command Line Tools (`xcode-select --install`);
+- on **Linux**, a C toolchain and the SQLite development files, used to link against the system SQLite:
+  - Debian, Ubuntu: `sudo apt install build-essential libsqlite3-dev`
+  - Fedora: `sudo dnf install gcc sqlite-devel`
+  - Arch: `sudo pacman -S base-devel sqlite`
 
 ```sh
-cargo test                       # 57 tests
+cargo test                       # 61 tests
 cargo build --release            # → target/release/llca
 ./target/release/llca demo
 ```
@@ -23,7 +29,7 @@ cargo build --release            # → target/release/llca
 With Homebrew (local tap, nothing published):
 
 ```sh
-sh scripts/package.sh            # tests, builds dist/llca-0.7.4.tar.gz, writes Formula/, updates the local tap
+sh scripts/package.sh            # tests, builds dist/llca-0.7.5.tar.gz, writes Formula/, updates the local tap
 brew reinstall local/llca/llca    # or: brew install local/llca/llca
 llca init --global --agent all
 llca doctor
@@ -31,6 +37,18 @@ llca open
 ```
 
 `package.sh` also clears Homebrew's cached archive, so `brew reinstall` always builds what you just packaged.
+
+### Where the data lives
+
+| | macOS | Linux |
+|---|---|---|
+| Journal, collector copy, your rules | `~/Library/Application Support/llca/` | `$XDG_DATA_HOME/llca/` (by default `~/.local/share/llca/`) |
+| Codex hooks | `~/.codex/hooks.json` | same |
+| Claude Code hooks | `~/.claude/settings.json` | same |
+
+`LLCA_HOME` or `--data-dir` choose another folder. A folder llca creates is private to you (`700`) and its files are `600`; a folder you choose keeps its own permissions, and `llca doctor` says if other users can open it.
+
+On Linux, the dashboard and the rules file open with `xdg-open`. Application icons, and the applications recognised in commands (`/Applications/…`, `open -a`, AppleScript), are macOS features; the rest is the same.
 
 ## Commands
 
@@ -50,9 +68,9 @@ llca uninstall --global --agent all                 # removes hooks, keeps the j
 
 ## How it works
 
-- **Codex:** seven hooks in `~/.codex/hooks.json` (SessionStart, PreToolUse, PermissionRequest, PostToolUse, Stop, SessionEnd, Interrupt). Codex runs a hook only after you trust it in `/hooks`, and only in sessions started afterwards.
+- **Codex:** seven hooks in `~/.codex/hooks.json` (SessionStart, PreToolUse, PermissionRequest, PostToolUse, Stop, SessionEnd, Interrupt). Codex runs a hook only after you trust it in `/hooks`, and only in sessions started afterwards. With `--project`, they go to `<project>/.codex/hooks.json`; since the hook names a path on your computer, `init` lists that file in `.git/info/exclude` (git's local ignore list: the repository does not change), and warns if the file is already in the repository.
 - **Claude Code:** eight hooks under the `hooks` key of `~/.claude/settings.json` (adds PermissionDenied and PostToolUseFailure, no Interrupt). With `--project`, they go to `.claude/settings.local.json`, which is not committed. If `/doctor` in Claude Code reports several installations, make sure the one on your `PATH` is up to date.
-- **The collector copy.** The hooks call `~/Library/Application Support/llca/bin/llca`, a copy made by `init`, so that upgrading or moving llca never breaks them. The flip side: after an upgrade, the hooks keep the old copy (and its older redaction rules) until you run `llca init --global --agent all` again. `doctor` and the dashboard compare the copy's version with their own and tell you when it is behind; `doctor` then exits with code 1.
+- **The collector copy.** The hooks call `bin/llca` in the data folder, a copy made by `init`, so that upgrading or moving llca never breaks them. The flip side: after an upgrade, the hooks keep the old copy (and its older redaction rules) until you run `llca init --global --agent all` again. `doctor` and the dashboard compare the copy's version with their own and tell you when it is behind; `doctor` then exits with code 1.
 - **The collector** (`llca hook`) reads one event on stdin, redacts it, appends it to SQLite and exits with code 0. It never allows, denies or changes anything: for Codex it prints `{}`, for Claude Code nothing at all. A failure is logged to `collector-errors.log` without any of the event's content.
 - **Cost to the agent.** The agent waits for each hook, two or three per tool call. Measured on Linux with a 150,000-event journal: about 4 ms per hook (half of it starting the program), the same with an empty journal, and about 5 ms while the dashboard reads the whole history (the journal uses SQLite's WAL mode, where reading never blocks writing). If the journal stays busy for more than 0.5 s, the collector gives up, notes it in `collector-errors.log` and lets the agent go on.
 - **The dashboard** (`open`) is a small HTTP server on `127.0.0.1` that lives until Ctrl+C. Its API needs a token created for each launch; it checks the Host and Origin headers and sends a strict Content-Security-Policy. The page is embedded in the binary. The page asks for fresh figures every 4 seconds while it is visible; the overview is computed in one reading of the period and kept until the journal or your rules change, so an idle dashboard costs almost nothing (150,000 events: about 1.5 s to compute, 20 ms when nothing changed).
@@ -87,7 +105,7 @@ service   Stripe                        # Used Stripe
 
 `file` matches a path the agent read or edited, or named in a command; `command` a shell command as recorded; `tool` a tool name; `service` an online service by its dashboard name. `*` matches anything, case is ignored, `~/` is your home folder. Matching actions are listed under "Your rules" in "Worth a look" (amber, or red with `alert`), and marked in the activity list, where each rule is also a filter. These rules only *read* the journal when the dashboard shows it: they never block an agent, never change what is recorded, and apply to your whole history as soon as you save the file. A line with a mistake is skipped and named on the overview and by `doctor`. (Masking secrets is a different job, done before anything is written: see below.)
 
-"Worth a look" lists failures, denials, hidden secrets, Computer Use, risky commands (sudo, recursive deletes, git push, piping a download into a shell, publishing, deploying), data sent outside this Mac (Claude Code `Artifact`, `ShareOnboardingGuide`) and work scheduled to run later (`CronCreate`, `ScheduleWakeup`, `RemoteTrigger`). These flags are simple heuristics, not a security verdict.
+"Worth a look" lists failures, denials, hidden secrets, Computer Use, risky commands (sudo, recursive deletes, git push, piping a download into a shell, publishing, deploying), data sent outside this computer (Claude Code `Artifact`, `ShareOnboardingGuide`) and work scheduled to run later (`CronCreate`, `ScheduleWakeup`, `RemoteTrigger`). These flags are simple heuristics, not a security verdict.
 
 ## What is kept, and what is not
 

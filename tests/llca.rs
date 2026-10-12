@@ -269,7 +269,9 @@ fn http_access_control_and_assets() {
     let page = json::parse(&body).unwrap();
     assert_eq!(page.get("next"), Some(&Value::Null));
     assert!(page.get("scanned").and_then(Value::as_integer).is_some());
-    assert_eq!(http(port, "/api/status", std::slice::from_ref(&auth)).0, 200);
+    let (code, _, body) = http(port, "/api/status", std::slice::from_ref(&auth));
+    assert_eq!(code, 200);
+    assert_eq!(json::parse(&body).unwrap().get("os").and_then(Value::as_str), Some(std::env::consts::OS));
     // Wrong Host and foreign Origin are refused.
     let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
     s.write_all(format!("GET /api/events HTTP/1.1\r\nHost: evil.example\r\nAuthorization: Bearer {token}\r\n\r\n").as_bytes()).unwrap();
@@ -802,6 +804,122 @@ fn stored_events_keep_the_v02_shape() {
     assert!(row.get("arguments").unwrap().to_compact().contains("git status"));
     assert_ne!(MASK, "");
     let _ = store::MAX_INPUT;
+}
+
+/// Linux: the journal goes to $XDG_DATA_HOME/llca, or ~/.local/share/llca.
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn linux_keeps_its_data_in_the_xdg_data_folder() {
+    let t = Temp::new();
+    let run = |envs: &[(&str, &Path)]| {
+        let mut cmd = Command::new(BIN);
+        cmd.arg("logs").env_remove("LLCA_HOME").env_remove("XDG_DATA_HOME").env("HOME", &t.0);
+        for (k, v) in envs {
+            cmd.env(k, v);
+        }
+        assert!(cmd.output().unwrap().status.success());
+    };
+    run(&[]);
+    assert!(t.0.join(".local/share/llca/events.sqlite3").exists());
+    let xdg = t.0.join("xdg");
+    run(&[("XDG_DATA_HOME", &xdg)]);
+    assert!(xdg.join("llca/events.sqlite3").exists());
+    // A relative XDG_DATA_HOME is ignored, as the XDG specification says.
+    run(&[("XDG_DATA_HOME", Path::new("relative"))]);
+    assert!(!t.0.join("relative").exists());
+    // LLCA_HOME still wins.
+    let chosen = t.0.join("chosen");
+    run(&[("XDG_DATA_HOME", &xdg), ("LLCA_HOME", &chosen)]);
+    assert!(chosen.join("events.sqlite3").exists());
+}
+
+#[test]
+fn codex_project_hooks_stay_out_of_git() {
+    if Command::new("git").arg("--version").output().is_err() {
+        return; // no git on this machine
+    }
+    let t = Temp::new();
+    let repo = t.0.join("project");
+    fs::create_dir_all(&repo).unwrap();
+    let git = |args: &[&str]| Command::new("git").arg("-C").arg(&repo).args(["-c", "user.name=T", "-c", "user.email=t@example.invalid"]).args(args).output().unwrap();
+    assert!(git(&["init", "-q"]).status.success());
+    let init = || {
+        let out = Command::new(BIN).arg("--data-dir").arg(t.data()).args(["init", "--agent", "codex", "--project"]).arg(&repo).output().unwrap();
+        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        String::from_utf8_lossy(&out.stdout).to_string()
+    };
+    // The hooks file names a path on this computer: git leaves it out, locally.
+    assert!(init().contains("added .codex/hooks.json to .git/info/exclude"));
+    assert!(repo.join(".codex/hooks.json").exists());
+    let status = String::from_utf8_lossy(&git(&["status", "--porcelain", "--untracked-files=all"]).stdout).to_string();
+    assert!(!status.contains(".codex"), "{status}");
+    // A second init does not add the line again.
+    assert!(init().contains("stays on this computer"));
+    let exclude = fs::read_to_string(repo.join(".git/info/exclude")).unwrap();
+    assert_eq!(exclude.lines().filter(|l| *l == "/.codex/hooks.json").count(), 1);
+    // A hooks file already in the repository: llca says not to commit the change.
+    let shared = t.0.join("shared");
+    fs::create_dir_all(shared.join(".codex")).unwrap();
+    fs::write(shared.join(".codex/hooks.json"), "{}").unwrap();
+    let git2 = |args: &[&str]| Command::new("git").arg("-C").arg(&shared).args(["-c", "user.name=T", "-c", "user.email=t@example.invalid"]).args(args).output().unwrap();
+    git2(&["init", "-q"]);
+    git2(&["add", "."]);
+    assert!(git2(&["commit", "-qm", "hooks"]).status.success());
+    let out = Command::new(BIN).arg("--data-dir").arg(t.data()).args(["init", "--agent", "codex", "--project"]).arg(&shared).output().unwrap();
+    assert!(String::from_utf8_lossy(&out.stdout).contains("git rm --cached .codex/hooks.json"));
+}
+
+#[test]
+fn an_existing_data_folder_keeps_its_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+    let t = Temp::new();
+    // A folder of the user's, given with --data-dir: llca writes its private
+    // files there but leaves the folder's own permissions alone.
+    let mine = t.0.join("my folder");
+    fs::create_dir_all(&mine).unwrap();
+    fs::set_permissions(&mine, fs::Permissions::from_mode(0o755)).unwrap();
+    let out = Command::new(BIN).arg("--data-dir").arg(&mine).arg("logs").output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(fs::metadata(&mine).unwrap().permissions().mode() & 0o777, 0o755);
+    assert_eq!(fs::metadata(mine.join("events.sqlite3")).unwrap().permissions().mode() & 0o777, 0o600);
+    // doctor says the folder is open to others, and how to close it.
+    let doctor = Command::new(BIN).arg("--data-dir").arg(&mine).arg("doctor").arg("--codex-dir").arg(t.codex()).arg("--claude-dir").arg(t.claude()).env("NO_COLOR", "1").output().unwrap();
+    let text = String::from_utf8_lossy(&doctor.stdout);
+    assert!(text.contains("Other users of this computer can open the journal") && text.contains("chmod 700"), "{text}");
+    // A folder llca creates itself is private.
+    let fresh = t.0.join("new data");
+    Command::new(BIN).arg("--data-dir").arg(&fresh).arg("logs").output().unwrap();
+    assert_eq!(fs::metadata(&fresh).unwrap().permissions().mode() & 0o777, 0o700);
+    // A file in place of the folder is refused.
+    let file = t.0.join("a file");
+    fs::write(&file, "x").unwrap();
+    assert!(!Command::new(BIN).arg("--data-dir").arg(&file).arg("logs").output().unwrap().status.success());
+}
+
+#[test]
+fn large_events_are_recorded_without_their_content() {
+    // A PostToolUse carries the tool's whole answer: here 5 MB, as for a
+    // large file read. The event is kept; the answer is not.
+    let t = Temp::new();
+    let big = "x".repeat(5 * 1024 * 1024);
+    let input = obj![
+        ("session_id", "s1"),
+        ("tool_use_id", "big"),
+        ("hook_event_name", "PostToolUse"),
+        ("tool_name", "Read"),
+        ("tool_input", obj![("file_path", "/p/huge.log")]),
+        ("tool_response", obj![("content", big.as_str())]),
+    ]
+    .to_compact();
+    let data = t.data().to_string_lossy().to_string();
+    let (code, out, _) = run_shell(&format!("{} --data-dir {} hook --adapter claude-code-v0", BIN, util::shell_quote(&data)), &input);
+    assert_eq!((code, out.as_str()), (0, ""));
+    let rows = all(&t.data());
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get("status").and_then(Value::as_str), Some("success"));
+    let stored = rows[0].to_compact();
+    assert!(stored.len() < 10_000 && stored.contains("huge.log"), "{} bytes", stored.len());
+    assert!(!t.data().join("collector-errors.log").exists());
 }
 
 #[test]

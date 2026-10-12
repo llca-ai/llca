@@ -30,8 +30,9 @@ Commands:
   audit      List recorded values that look like secrets, with the rule to add
 
 Options:
-  --data-dir PATH     Private location of the log (default: $LLCA_HOME or
-                      ~/Library/Application Support/llca)
+  --data-dir PATH     Private location of the log (default: $LLCA_HOME, else
+                      ~/Library/Application Support/llca on macOS and
+                      $XDG_DATA_HOME/llca or ~/.local/share/llca on Linux)
   --codex-dir PATH    Codex configuration directory (init, uninstall, doctor)
   --claude-dir PATH   Claude Code settings directory or JSON file (init, uninstall, doctor)
   -h, --help          Show this help
@@ -130,9 +131,62 @@ fn parse_args(raw: Vec<String>) -> Result<Option<Args>, UsageError> {
 }
 
 fn default_data_dir() -> PathBuf {
-    match std::env::var_os("LLCA_HOME") {
-        Some(p) => PathBuf::from(p),
-        None => util::home().join("Library/Application Support/llca"),
+    if let Some(p) = std::env::var_os("LLCA_HOME") {
+        return PathBuf::from(p);
+    }
+    if cfg!(target_os = "macos") {
+        return util::home().join("Library/Application Support/llca");
+    }
+    // Linux and others: the XDG base directory (only an absolute path counts).
+    match std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).filter(|p| p.is_absolute()) {
+        Some(p) => p.join("llca"),
+        None => util::home().join(".local/share/llca"),
+    }
+}
+
+/// Codex reads a project's hooks from `.codex/hooks.json`, a file that may be
+/// committed with the project, and llca's hook names a path on this computer
+/// (with the user name). Claude Code has settings.local.json for that; for
+/// Codex, the file is listed in `.git/info/exclude`, git's own list of files to
+/// leave out on this computer only (nothing in the repository changes).
+fn keep_codex_hooks_local(project: &Path) -> String {
+    // The hooks file, and the backup and lock files llca writes next to it.
+    const ENTRIES: [&str; 3] = ["/.codex/hooks.json", "/.codex/hooks.json.llca-backup-*", "/.codex/.llca-install.lock"];
+    let git = project.join(".git");
+    if !git.is_dir() {
+        return "Note: .codex/hooks.json now names a path on this computer. Do not commit it with the project.".into();
+    }
+    let tracked = std::process::Command::new("git")
+        .arg("-C")
+        .arg(project)
+        .args(["ls-files", "--error-unmatch", ".codex/hooks.json"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success());
+    if tracked {
+        return "Warning: .codex/hooks.json is in this project's git repository, and it now names a path on this computer. \
+                Do not commit this change; to keep the file out of git: git rm --cached .codex/hooks.json"
+            .into();
+    }
+    let exclude = git.join("info").join("exclude");
+    let current = std::fs::read_to_string(&exclude).unwrap_or_default();
+    let missing: Vec<&str> = ENTRIES.iter().copied().filter(|e| !current.lines().any(|l| l.trim() == *e)).collect();
+    if missing.is_empty() {
+        return "Git: .codex/hooks.json stays on this computer (.git/info/exclude).".into();
+    }
+    let mut text = current;
+    if !text.is_empty() && !text.ends_with('\n') {
+        text.push('\n');
+    }
+    text.push_str("# llca: Codex hooks with a path on this computer\n");
+    for e in missing {
+        text.push_str(e);
+        text.push('\n');
+    }
+    match std::fs::create_dir_all(git.join("info")).and_then(|_| std::fs::write(&exclude, text)) {
+        Ok(()) => "Git: added .codex/hooks.json to .git/info/exclude, so it stays on this computer (the repository does not change).".into(),
+        Err(_) => "Note: .codex/hooks.json now names a path on this computer. Do not commit it with the project.".into(),
     }
 }
 
@@ -176,9 +230,12 @@ fn collect(data_dir: &Path, adapter: &str) -> i32 {
     std::panic::set_hook(Box::new(|_| {})); // a panic must not write to the agent's terminal
     let result = std::panic::catch_unwind(|| -> Result<(), String> {
         let mut raw = Vec::new();
-        std::io::stdin().take(store::MAX_INPUT as u64 + 1).read_to_end(&mut raw).map_err(|_| "OSError".to_string())?;
+        let mut stdin = std::io::stdin();
+        (&mut stdin).take(store::MAX_INPUT as u64 + 1).read_to_end(&mut raw).map_err(|_| "OSError".to_string())?;
         if raw.len() > store::MAX_INPUT {
-            return Err("ValueError".into());
+            // Read the rest anyway, so the agent never writes into a closed pipe.
+            let _ = std::io::copy(&mut stdin, &mut std::io::sink());
+            return Err("TooLarge".into());
         }
         let text = std::str::from_utf8(&raw).map_err(|_| "UnicodeDecodeError".to_string())?;
         let payload = json::parse(text).map_err(|_| "JSONDecodeError".to_string())?;
@@ -273,6 +330,9 @@ fn run(args: Args) -> Result<i32, String> {
                     println!("Your rules: {} (see the examples inside).", data_dir.join(crate::watch::FILE_NAME).display());
                 }
                 if agents.contains(&"codex") {
+                    if let (Some(project), None) = (&args.project, &args.codex_dir) {
+                        println!("{}", keep_codex_hooks_local(project));
+                    }
                     println!("Codex: open /hooks to review and trust llca, then start a new session.");
                 }
                 if agents.contains(&"claude-code") {
@@ -296,6 +356,7 @@ fn run(args: Args) -> Result<i32, String> {
                 ("collector", install::collector_state(&data_dir)),
                 ("journal", store::stats(&data_dir).map_err(|e| e.to_string())?),
                 ("journal_path", data_dir.join("events.sqlite3").to_string_lossy().into_owned()),
+                ("data_dir_shared", util::open_to_others(&data_dir)),
                 ("collector_errors", crate::doctor::collector_errors(&data_dir)),
                 ("watch", {
                     let (rules, exists) = crate::watch::load(&data_dir);

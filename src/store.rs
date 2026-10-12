@@ -17,7 +17,11 @@ pub const CODEX_EVENTS: [&str; 7] = ["SessionStart", "PreToolUse", "PermissionRe
 // Claude Code has no Interrupt event, but reports failed tools and denied permissions.
 pub const CLAUDE_EVENTS: [&str; 8] =
     ["SessionStart", "PreToolUse", "PermissionRequest", "PermissionDenied", "PostToolUse", "PostToolUseFailure", "Stop", "SessionEnd"];
-pub const MAX_INPUT: usize = 2 * 1024 * 1024;
+/// The largest event the collector reads. Agents send the tool's whole answer
+/// with PostToolUse (the content of a file read, a command's output): it is
+/// never kept, but it has to be read. 2 MB lost real events (a large Read or
+/// Write); 64 MB covers what agents send, and bounds the work.
+pub const MAX_INPUT: usize = 64 * 1024 * 1024;
 
 pub fn agent_events(agent: &str) -> Option<&'static [&'static str]> {
     match agent {
@@ -439,7 +443,7 @@ const RISK_WORDS: [&str; 12] = ["sudo", "rm", "git", "curl", "wget", "chmod", "p
 const EDIT_TOOLS: [&str; 5] = ["apply_patch", "Edit", "MultiEdit", "Write", "NotebookEdit"];
 const READ_TOOLS: [&str; 5] = ["Read", "read_file", "Grep", "Glob", "LS"];
 const WEB_TOOLS: [&str; 2] = ["WebFetch", "WebSearch"];
-/// Tools the dashboard flags by name: data leaving the Mac, work scheduled for later.
+/// Tools the dashboard flags by name: data leaving the computer, work scheduled for later.
 const FLAGGED_TOOLS: [&str; 5] = ["Artifact", "ShareOnboardingGuide", "CronCreate", "ScheduleWakeup", "RemoteTrigger"];
 
 impl Seen<'_> {
