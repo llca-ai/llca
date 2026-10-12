@@ -1,3 +1,3 @@
 fn main() {
-    std::process::exit(agentledger::cli::main());
+    std::process::exit(llca::cli::main());
 }

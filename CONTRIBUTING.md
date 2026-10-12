@@ -5,12 +5,12 @@ format anyone could hit; if it reveals something about a real system, use
 [SECURITY.md](SECURITY.md) instead.
 
 The most useful contribution is a **redaction rule**: a secret format, a URL
-parameter or a label that AgentLedger does not mask yet. Rules live in two
+parameter or a label that llca does not mask yet. Rules live in two
 plain-text files; no Rust is needed.
 
 ## Add a redaction rule
 
-1. **Find what slipped through.** Run `agentledger audit`. It lists values in
+1. **Find what slipped through.** Run `llca audit`. It lists values in
    your journal that look random and were kept, shortened to their first
    four characters, with the rule that would mask them:
 
@@ -21,7 +21,7 @@ plain-text files; no Rust is needed.
    ```
 
    Not every finding is a secret (some are identifiers). Look at the events
-   with `agentledger logs` and decide.
+   with `llca logs` and decide.
 
 2. **Add the rule** to [`rules/redaction.rules`](rules/redaction.rules). The
    file explains each kind of rule at its top:
@@ -62,7 +62,7 @@ plain-text files; no Rust is needed.
    the line), that every case passes, and that redacting twice changes
    nothing. Then open a pull request.
 
-After installing a build with your rule, `agentledger redact` applies it to
+After installing a build with your rule, `llca redact` applies it to
 the events already in your journal.
 
 ## Name an online service

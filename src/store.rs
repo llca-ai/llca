@@ -1,5 +1,5 @@
 //! Normalising hook events and storing them in the local SQLite journal.
-//! The schema and the stored JSON are the same as AgentLedger 0.2 (Python),
+//! The schema and the stored JSON are the same as version 0.2 (Python),
 //! so existing journals keep working.
 
 use std::fs::{self, OpenOptions};

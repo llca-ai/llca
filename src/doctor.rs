@@ -1,4 +1,4 @@
-//! `agentledger doctor`: the checkup, as a short report a person can read.
+//! `llca doctor`: the checkup, as a short report a person can read.
 //! One line per part (each agent, the collector, the journal), then the
 //! problems with the command that fixes each one. `--json` prints the same
 //! facts for scripts.
@@ -98,7 +98,7 @@ fn assess(report: &Value, target: &str, now: i64) -> (Vec<Line>, Vec<Problem>) {
         for (id, state) in agents.iter() {
             let name = agent_name(id).to_string();
             let flag = if id == "codex" { "codex" } else { "claude" };
-            let fix = format!("agentledger init {target} --agent {flag}");
+            let fix = format!("llca init {target} --agent {flag}");
             let registered = state.get("registered").and_then(Value::as_array).map_or(0, Vec::len);
             let expected = state.get("expected").and_then(Value::as_array).map_or(0, Vec::len);
             let config = tilde(text(state.get("config_path")));
@@ -135,7 +135,7 @@ fn assess(report: &Value, target: &str, now: i64) -> (Vec<Line>, Vec<Problem>) {
         }
     }
     if !any_installed && !lines.iter().any(|l| l.mark == Mark::Problem) {
-        problems.push(Problem { what: "No agent is being recorded.".into(), fix: Some(format!("agentledger init {target} --agent all")) });
+        problems.push(Problem { what: "No agent is being recorded.".into(), fix: Some(format!("llca init {target} --agent all")) });
     }
 
     // Collector copy.
@@ -147,13 +147,13 @@ fn assess(report: &Value, target: &str, now: i64) -> (Vec<Line>, Vec<Problem>) {
             lines.push(Line {
                 mark: Mark::Problem,
                 name: "Collector".into(),
-                text: format!("{shown}, older than this AgentLedger ({running})"),
+                text: format!("{shown}, older than this version ({running})"),
                 notes: vec!["The hooks run this copy, with its older redaction rules.".into()],
             });
             if any_hooks {
                 problems.push(Problem {
-                    what: format!("The hooks run AgentLedger {shown}, older than this one ({running}): newer redaction rules do not apply yet."),
-                    fix: Some(format!("agentledger init {target} --agent all")),
+                    what: format!("The hooks run llca {shown}, older than this one ({running}): newer redaction rules do not apply yet."),
+                    fix: Some(format!("llca init {target} --agent all")),
                 });
             }
         } else {
@@ -224,7 +224,7 @@ pub fn render(report: &Value, target: &str, color: bool) -> (String, usize) {
         Mark::Off => paint("2", "○"),
     };
     let width = lines.iter().map(|l| l.name.chars().count()).max().unwrap_or(0) + 2;
-    let mut out = format!("{}\n\n", paint("1", &format!("AgentLedger {} · checkup", crate::cli::VERSION)));
+    let mut out = format!("{}\n\n", paint("1", &format!("llca {} · checkup", crate::cli::VERSION)));
     for l in &lines {
         let name = format!("{:width$}", l.name);
         let body = if l.mark == Mark::Problem { paint("31", &l.text) } else { l.text.clone() };
@@ -249,7 +249,7 @@ pub fn render(report: &Value, target: &str, color: bool) -> (String, usize) {
             }
         }
     }
-    out.push_str(&paint("2", "\nAll details: agentledger doctor --json\n"));
+    out.push_str(&paint("2", "\nAll details: llca doctor --json\n"));
     (out, problems.len())
 }
 

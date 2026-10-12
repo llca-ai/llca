@@ -24,7 +24,7 @@ pub const FILE_NAME: &str = "watch.rules";
 
 /// What a new watch.rules file says, written by `init` when there is none.
 pub const TEMPLATE: &str = "\
-# AgentLedger: your rules. Actions that match are shown under \"Worth a look\".
+# llca: your rules. Actions that match are shown under \"Worth a look\".
 # They never block an agent and never change the journal; they apply to your
 # whole history as soon as you save this file.
 #

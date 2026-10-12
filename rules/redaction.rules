@@ -1,11 +1,11 @@
-# AgentLedger redaction rules
+# llca redaction rules
 #
 # These rules decide what is masked before an event is written to the journal.
 # They are compiled into the binary: after a change, run `cargo test` (every
-# rule must keep rules/cases.txt passing), rebuild, then `agentledger redact`
+# rule must keep rules/cases.txt passing), rebuild, then `llca redact`
 # to apply the new rules to events already recorded.
 #
-# Found something that slipped through? `agentledger audit` lists values that
+# Found something that slipped through? `llca audit` lists values that
 # look like secrets in your journal. Add a rule here AND a case in
 # rules/cases.txt that proves it, then open a pull request.
 #

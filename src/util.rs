@@ -240,7 +240,7 @@ pub fn atomic_write(path: &Path, content: &[u8], mode: u32) -> std::io::Result<(
     let dir = path.parent().unwrap_or(Path::new("."));
     fs::create_dir_all(dir)?;
     let suffix = base64url(&random_bytes(9)?);
-    let tmp = dir.join(format!(".agentledger-{suffix}"));
+    let tmp = dir.join(format!(".llca-{suffix}"));
     let result = (|| {
         let mut f = OpenOptions::new().write(true).create_new(true).mode(mode).open(&tmp)?;
         f.set_permissions(fs::Permissions::from_mode(mode))?;

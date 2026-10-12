@@ -1,4 +1,4 @@
-//! `agentledger audit`: look for values in the journal that resemble secrets
+//! `llca audit`: look for values in the journal that resemble secrets
 //! but were kept, and suggest the rule that would mask them. Read-only.
 //!
 //! A candidate is a run of at least 20 token characters that looks random:
@@ -327,12 +327,12 @@ fn event_list(ids: &[i64]) -> String {
 }
 
 pub fn render(report: &Report) -> String {
-    let mut out = format!("AgentLedger audit · {} events checked · nothing is changed\n\n", report.checked);
+    let mut out = format!("llca audit · {} events checked · nothing is changed\n\n", report.checked);
     if report.outdated.is_empty() {
         out.push_str("All events are redacted with today's rules.\n");
     } else {
         out.push_str(&format!(
-            "{} event(s) were recorded with older rules and would change ({}).\n  Run: agentledger redact\n",
+            "{} event(s) were recorded with older rules and would change ({}).\n  Run: llca redact\n",
             report.outdated.len(),
             event_list(&report.outdated)
         ));
@@ -355,7 +355,7 @@ pub fn render(report: &Report) -> String {
         ));
         match suggestion(context, f) {
             Some(rule) => out.push_str(&format!("    rule: {rule}\n")),
-            None => out.push_str("    no context to build a rule from: look at these events with agentledger logs\n"),
+            None => out.push_str("    no context to build a rule from: look at these events with llca logs\n"),
         }
     }
     out
@@ -375,7 +375,7 @@ mod tests {
             assert!(looks_random(&chars(secret)), "{secret}");
         }
         for ordinary in [
-            "agentledger-dashboard-concepts-deploy",
+            "llca-dashboard-concepts-deploy",
             "2026-01-01T00%3A00%3A00Z",
             "react-native-reanimated-3",
             "test_dir_2026_10_10_check",

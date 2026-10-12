@@ -1,7 +1,7 @@
 //! Minimal JSON value, parser and serializer.
 //!
 //! Objects keep their key order, so that rewriting a user's settings.json or
-//! hooks.json only changes what AgentLedger adds. Numbers keep their original
+//! hooks.json only changes what llca adds. Numbers keep their original
 //! text, so they round-trip exactly.
 
 use std::fmt::Write as _;

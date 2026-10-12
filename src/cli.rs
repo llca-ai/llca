@@ -14,13 +14,14 @@ use crate::demo;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const USAGE: &str = "\
-AgentLedger: a local log of what Codex and Claude Code do on this machine.
+llca: Local Ledger for AI Coding Agents. A local log of what Codex and
+Claude Code do on this machine.
 
-Usage: agentledger [--data-dir PATH] COMMAND [OPTIONS]
+Usage: llca [--data-dir PATH] COMMAND [OPTIONS]
 
 Commands:
-  init       Add AgentLedger hooks       (--global | --project PATH) [--agent codex|claude|all]
-  uninstall  Remove AgentLedger hooks    (--global | --project PATH) [--agent codex|claude|all]
+  init       Add llca hooks       (--global | --project PATH) [--agent codex|claude|all]
+  uninstall  Remove llca hooks    (--global | --project PATH) [--agent codex|claude|all]
   doctor     Check the installation      [--project PATH] [--agent codex|claude|all] [--json]
   logs       Print recorded events       [--json] [--search TEXT] [--session ID] [--agent codex|claude] [--limit N]
   open       Open the dashboard          [--port N] [--no-browser]
@@ -29,8 +30,8 @@ Commands:
   audit      List recorded values that look like secrets, with the rule to add
 
 Options:
-  --data-dir PATH     Private location of the log (default: $AGENTLEDGER_HOME or
-                      ~/Library/Application Support/AgentLedger)
+  --data-dir PATH     Private location of the log (default: $LLCA_HOME or
+                      ~/Library/Application Support/llca)
   --codex-dir PATH    Codex configuration directory (init, uninstall, doctor)
   --claude-dir PATH   Claude Code settings directory or JSON file (init, uninstall, doctor)
   -h, --help          Show this help
@@ -129,9 +130,9 @@ fn parse_args(raw: Vec<String>) -> Result<Option<Args>, UsageError> {
 }
 
 fn default_data_dir() -> PathBuf {
-    match std::env::var_os("AGENTLEDGER_HOME") {
+    match std::env::var_os("LLCA_HOME") {
         Some(p) => PathBuf::from(p),
-        None => util::home().join("Library/Application Support/AgentLedger"),
+        None => util::home().join("Library/Application Support/llca"),
     }
 }
 
@@ -230,7 +231,7 @@ fn print_logs(data_dir: &Path, args: &Args) -> Result<(), String> {
         }
     }
     if rows.is_empty() && !args.json {
-        println!("No events. Run agentledger doctor (and, for Codex, check trust in /hooks).");
+        println!("No events. Run llca doctor (and, for Codex, check trust in /hooks).");
     }
     Ok(())
 }
@@ -257,7 +258,7 @@ fn run(args: Args) -> Result<i32, String> {
         "hook" => Ok(collect(&data_dir, args.adapter.as_deref().unwrap_or("codex-v0"))),
         cmd @ ("init" | "uninstall") => {
             if !(args.global || args.project.is_some() || args.codex_dir.is_some() || args.claude_dir.is_some()) {
-                eprintln!("agentledger: error: Specify --global, --project PATH, --codex-dir PATH or --claude-dir PATH");
+                eprintln!("llca: error: Specify --global, --project PATH, --codex-dir PATH or --claude-dir PATH");
                 return Ok(2);
             }
             let agents = agents_for(args.agent.as_deref(), "codex");
@@ -272,7 +273,7 @@ fn run(args: Args) -> Result<i32, String> {
                     println!("Your rules: {} (see the examples inside).", data_dir.join(crate::watch::FILE_NAME).display());
                 }
                 if agents.contains(&"codex") {
-                    println!("Codex: open /hooks to review and trust AgentLedger, then start a new session.");
+                    println!("Codex: open /hooks to review and trust llca, then start a new session.");
                 }
                 if agents.contains(&"claude-code") {
                     println!("Claude Code: hooks are picked up automatically; check them with /hooks or start a new session.");
@@ -341,13 +342,13 @@ fn run(args: Args) -> Result<i32, String> {
             if !r.wiped {
                 // The rows are clean; earlier copies may remain in the WAL file.
                 eprintln!("The journal was in use (the dashboard is probably open), so older copies of the text may remain in its WAL file until the next cleanup.");
-                eprintln!("Close the dashboard (Ctrl+C in its terminal), then run agentledger redact again.");
+                eprintln!("Close the dashboard (Ctrl+C in its terminal), then run llca redact again.");
                 return Ok(1);
             }
             Ok(0)
         }
         "demo" => {
-            let name = format!("agentledger-demo-{}", util::base64url(&util::random_bytes(6).map_err(|e| e.to_string())?));
+            let name = format!("llca-demo-{}", util::base64url(&util::random_bytes(6).map_err(|e| e.to_string())?));
             let dir = std::env::temp_dir().join(name);
             util::private_dir(&dir).map_err(|e| e.to_string())?;
             let result = demo::fill(&dir).map_err(|e| e.to_string()).and_then(|_| serve(&dir, &args, true));
@@ -369,13 +370,13 @@ pub fn main() -> i32 {
         Ok(Some(args)) => match run(args) {
             Ok(code) => code,
             Err(message) => {
-                eprintln!("AgentLedger: {message}");
+                eprintln!("llca: {message}");
                 1
             }
         },
         Err(UsageError(message)) => {
             eprint!("{USAGE}");
-            eprintln!("agentledger: error: {message}");
+            eprintln!("llca: error: {message}");
             2
         }
     }

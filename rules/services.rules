@@ -1,4 +1,4 @@
-# AgentLedger service rules
+# llca service rules
 #
 # These rules name the online services shown in the dashboard's map
 # ("Where the agents went"). A service is shown only when the journal proves

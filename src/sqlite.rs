@@ -1,4 +1,4 @@
-//! The few SQLite calls AgentLedger needs, bound to the system libsqlite3
+//! The few SQLite calls llca needs, bound to the system libsqlite3
 //! (shipped with macOS and every common Linux distribution).
 
 use std::ffi::{c_char, c_int, CStr, CString};

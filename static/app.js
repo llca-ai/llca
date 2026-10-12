@@ -1,9 +1,9 @@
-// AgentLedger dashboard. Turns raw hook events into a readable story:
+// llca dashboard. Turns raw hook events into a readable story:
 // one line per action, grouped by session, in plain words.
 const $ = id => document.getElementById(id);
 const fragment = new URLSearchParams(location.hash.slice(1));
-const token = fragment.get('token') || sessionStorage.getItem('agentledger-token');
-if (token) sessionStorage.setItem('agentledger-token', token);
+const token = fragment.get('token') || sessionStorage.getItem('llca-token');
+if (token) sessionStorage.setItem('llca-token', token);
 history.replaceState(null, '', '/');
 
 const AGENTS = {codex: 'Codex', 'claude-code': 'Claude Code'};
@@ -26,7 +26,7 @@ function node(tag, text, cls) {
 async function api(path, method = 'GET') {
   const response = await fetch(path, {method, headers: {Authorization: 'Bearer ' + token}});
   if (!response.ok) {
-    if (response.status === 401) throw new Error('Access expired. Run agentledger open again.');
+    if (response.status === 401) throw new Error('Access expired. Run llca open again.');
     // The server's own message when it gave one ("Could not open the rules file: …").
     const reason = await response.json().then(b => b.error, () => null);
     throw new Error(reason && reason !== 'Log unavailable' ? reason : 'The log could not be read.');
@@ -191,7 +191,7 @@ function watchOf(stages) {
 }
 
 // Kinds of secrets masked in an action ("GitHub token"…). Events recorded
-// before AgentLedger 0.5 only show that something was masked.
+// before version 0.5 only show that something was masked.
 const UNKNOWN_SECRET = 'A secret of unknown kind';
 function secretsOf(stages) {
   const kinds = new Set(stages.flatMap(s => s.secrets || []));
@@ -203,7 +203,7 @@ const secretFlag = kinds => (kinds.length === 1 ? 'A secret went through the age
 // What each status means, shown on hover.
 const STATUS_HELP = {
   ok: 'Success confirmed by the agent (exit code 0 or a success flag).',
-  done: 'The tool returned, but the agent reported no success or failure. AgentLedger does not read the output, so it does not guess.',
+  done: 'The tool returned, but the agent reported no success or failure. llca does not read the output, so it does not guess.',
   failed: 'The agent reported a failure (non-zero exit code or an error flag).',
   denied: 'The request was denied, so it did not run.',
   waiting: 'The agent asked for your approval. Your decision and the result were not recorded.',
@@ -427,7 +427,7 @@ function appChip(name) {
 
 // Shown on hover wherever "Computer Use" stands in for an application.
 const COMPUTER_USE_HELP = 'Computer Use: the agent controlled apps on this Mac by taking screenshots, clicking and typing. '
-  + 'The agent does not report which app it controlled, and AgentLedger does not keep the script of each step, only its title.';
+  + 'The agent does not report which app it controlled, and llca does not keep the script of each step, only its title.';
 
 function computerChip() {
   const chip = node('span', undefined, 'app-chip computer');
@@ -644,7 +644,7 @@ function renderTimeline() {
     } else {
       empty.append(node('strong', 'Your log starts here.'),
         node('p', 'Start a new Codex or Claude Code session on this Mac and ask it to do something small, like running pwd. It will appear here within seconds.'),
-        node('p', 'Not seeing anything? Run agentledger doctor in a terminal.', 'quiet'));
+        node('p', 'Not seeing anything? Run llca doctor in a terminal.', 'quiet'));
     }
     list.append(empty);
   }
@@ -682,7 +682,7 @@ function renderDetail() {
       list.append(li);
     }
     wrap.append(node('h4', (action.steps || [action]).length === 1 ? 'Step' : (action.steps.length + ' steps'), 'cu-title'), list,
-      node('p', 'The agent controlled apps on this Mac by taking screenshots, clicking and typing. It does not report which app; AgentLedger keeps each step’s title, not the script it ran.', 'quiet'));
+      node('p', 'The agent controlled apps on this Mac by taking screenshots, clicking and typing. It does not report which app; llca keeps each step’s title, not the script it ran.', 'quiet'));
   }
   const note = action.main.arguments && action.main.arguments.description;
   if (note && action.kind !== 'other') wrap.append(node('p', 'The agent’s note: ' + note, 'agent-note'));
@@ -690,7 +690,7 @@ function renderDetail() {
     const box = node('div', undefined, 'secret-box');
     box.append(node('h4', action.secrets.length === 1 ? 'A secret went through the agent' : 'Secrets went through the agent'));
     const ul = node('ul');
-    for (const k of action.secrets) ul.append(node('li', k === UNKNOWN_SECRET ? 'Kind not recorded (event recorded before AgentLedger 0.5)' : k));
+    for (const k of action.secrets) ul.append(node('li', k === UNKNOWN_SECRET ? 'Kind not recorded (event recorded before version 0.5)' : k));
     box.append(ul,
       node('p', agentName(action.session.agent) + ' sent it in clear to the service that runs its model. This log keeps it masked.'),
       node('p', 'If it does not expire on its own, consider rotating it, and give agents short-lived credentials with limited rights.', 'advice'));
@@ -747,7 +747,7 @@ function renderDetail() {
     ['Project', action.session.cwd ? shortPath(action.session.cwd) : 'Unknown'],
     ['When', fullTime(action.at)],
   ];
-  if (action.asked) rowsOut.push(['Approval', action.status === 'denied' ? 'Asked, then denied.' : 'Asked. The final decision is not shared with AgentLedger.']);
+  if (action.asked) rowsOut.push(['Approval', action.status === 'denied' ? 'Asked, then denied.' : 'Asked. The final decision is not shared with llca.']);
   for (const [k, v] of rowsOut) facts.append(node('dt', k), node('dd', v));
   if (action.computer) {
     const dd = node('dd', undefined, 'detail-apps');
@@ -784,11 +784,11 @@ function renderDetail() {
     techFacts.append(node('dt', k), node('dd', v));
   }
   tech.append(node('h4', 'Steps'), steps, techFacts, node('h4', 'Arguments as recorded'), node('pre', JSON.stringify(action.main.arguments, null, 2)));
-  wrap.append(tech, node('p', 'AgentLedger never records outputs or file contents. Secrets are hidden on a best-effort basis.', 'quiet'));
+  wrap.append(tech, node('p', 'llca never records outputs or file contents. Secrets are hidden on a best-effort basis.', 'quiet'));
   box.replaceChildren(wrap);
 }
 
-// The hooks run a copy of AgentLedger made by `init`. After an upgrade that
+// The hooks run a copy of llca made by `init`. After an upgrade that
 // copy is older than this dashboard, with older redaction rules, until
 // `init` is run again.
 function renderCollector(status) {
@@ -801,7 +801,7 @@ function renderCollector(status) {
   const copy = node('button', 'Copy', 'link');
   copy.onclick = () => navigator.clipboard.writeText(c.fix).then(() => { copy.textContent = 'Copied'; }, () => {});
   banner.replaceChildren(
-    node('strong', 'Your hooks run an older AgentLedger' + (c.version ? ' (' + c.version + ')' : '') + ' than this one (' + c.running + '). '),
+    node('strong', 'Your hooks run an older llca' + (c.version ? ' (' + c.version + ')' : '') + ' than this one (' + c.running + '). '),
     'New redaction rules only apply once they are updated. Run ', command, ' ', copy);
 }
 
@@ -813,13 +813,13 @@ function renderRail(status) {
     const on = status.demo ? count > 0 : (status.installation[id] || {}).installed;
     item.classList.toggle('off', !on);
     item.querySelector('.count').textContent = on ? '' : 'not set up';
-    item.title = (on ? agentName(id) + ' is being recorded' : 'Not set up. Run: agentledger init --global --agent ' + (id === 'codex' ? 'codex' : 'claude'))
+    item.title = (on ? agentName(id) + ' is being recorded' : 'Not set up. Run: llca init --global --agent ' + (id === 'codex' ? 'codex' : 'claude'))
       + (state.agent === id ? '. Click to show every agent.' : '. Click to show only ' + agentName(id) + '.');
   }
   const installed = Object.entries(status.installation || {}).filter(([, s]) => s.installed).map(([id]) => agentName(id));
   $('setup').textContent = status.demo ? 'Showing demo data.'
     : installed.length ? 'Recording ' + joinAnd(installed) + '.' + (installed.includes('Codex') ? ' Codex hooks must be trusted in /hooks.' : '')
-    : 'Not recording yet. Run agentledger init --global --agent all.';
+    : 'Not recording yet. Run llca init --global --agent all.';
 }
 
 // ---------- Period ----------
@@ -900,7 +900,7 @@ function barList(rows, color) {
     const track = node('span', undefined, 'bar-track');
     const tone = r.color || color;
     const brand = tone && tone.startsWith('#');
-    const fill = node('span', undefined, 'bar-fill' + (tone && !brand ? ' ' + tone : ''));
+    const fill = node('span', undefined, 'bar-fill' + (brand ? ' brand' : tone ? ' ' + tone : ''));
     if (brand) fill.style.background = tone;
     fill.style.width = Math.max(2, (r.value / max) * 100) + '%';
     track.append(fill);
@@ -942,6 +942,22 @@ function buckets(byDay) {
 }
 
 const SVG = 'http://www.w3.org/2000/svg';
+
+// An agent's logo (static/brands.js), drawn in the agent's colour by CSS
+// (.agent-logo); null when it has none.
+function agentLogo(id) {
+  const logo = typeof AGENT_LOGOS === 'object' ? AGENT_LOGOS[id] : null;
+  if (!logo) return null;
+  const svg = document.createElementNS(SVG, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('class', 'agent-logo ' + id);
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS(SVG, 'path');
+  path.setAttribute('d', logo[1]);
+  path.setAttribute('fill', 'currentColor');
+  svg.append(path);
+  return svg;
+}
 function svg(tag, attrs) {
   const e = document.createElementNS(SVG, tag);
   for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
@@ -1463,7 +1479,11 @@ function resourceMap(map) {
     Object.assign(b.style, {top: a.top + 'px', width: L.leftW + 'px', height: a.height + 'px'});
     const meta = focusedRes ? (focusedRes.agents[a.agent] ? plural(focusedRes.agents[a.agent], 'action') + ' of ' + info.actions : 'Did not use it')
       : plural(info.sessions, 'session') + ' · ' + plural(info.actions, 'action');
-    b.append(node('strong', agentName(a.agent)), node('span', meta, 'map-meta'));
+    const name = node('strong', undefined, 'map-agent-name');
+    const logo = agentLogo(a.agent);
+    if (logo) name.append(logo);
+    name.append(agentName(a.agent));
+    b.append(name, node('span', meta, 'map-meta'));
     b.title = 'Highlight what ' + agentName(a.agent) + ' reached';
     b.onclick = () => { state.mapFocus = f && f.type === 'agent' && f.id === a.agent ? null : {type: 'agent', id: a.agent}; renderOverview(); };
     host.append(b);
@@ -1987,6 +2007,30 @@ async function moreMatches(page, params, gen) {
     page = {events: withoutRepeats(page.events.concat(older.events)), next: older.next, scanned: page.scanned + older.scanned};
   }
   return page;
+}
+
+// ---------- Theme ----------
+// Auto follows the Mac; light or dark is kept in the data folder (the port,
+// and so the browser's storage, changes at each launch). /theme.js applies
+// the saved choice before the page is drawn.
+function showTheme(theme) {
+  if (theme === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+  for (const b of document.querySelectorAll('.theme-btn')) b.setAttribute('aria-pressed', String(b.dataset.theme === theme));
+}
+showTheme(document.documentElement.dataset.theme || 'auto');
+for (const b of document.querySelectorAll('.theme-btn')) {
+  b.onclick = () => {
+    showTheme(b.dataset.theme);
+    api('/api/theme?set=' + b.dataset.theme, 'POST').catch(() => {});
+  };
+}
+
+// Agents in the side menu: their logo (static/brands.js) in the agent's colour;
+// the colour alone when there is none.
+for (const id of Object.keys(AGENTS)) {
+  const svg = agentLogo(id);
+  if (svg) $('agent-' + id).querySelector('.agent-icon').replaceChildren(svg);
 }
 
 $('refresh').onclick = () => refresh();

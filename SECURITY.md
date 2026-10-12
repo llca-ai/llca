@@ -1,6 +1,6 @@
 # Security policy
 
-AgentLedger sees what AI agents run on your machine, so a flaw in it can expose
+llca sees what AI agents run on your machine, so a flaw in it can expose
 secrets. Please report security issues privately, not in a public issue.
 
 ## What to report privately
@@ -10,7 +10,7 @@ secrets. Please report security issues privately, not in a public issue.
 - **A way to read the journal or the dashboard** from another user account,
   another machine or a web page.
 - **Anything that makes the hooks block, change or slow down an agent**, or
-  run something other than AgentLedger.
+  run something other than llca.
 
 ## How to report
 
@@ -27,17 +27,17 @@ a new version with a rule in `rules/redaction.rules` and a case in
 
 ## After a redaction fix
 
-Update AgentLedger, then:
+Update llca, then:
 
 ```sh
-agentledger init --global --agent all   # the hooks use a copy of the binary: refresh it
-agentledger redact                      # apply the new rules to events already recorded
+llca init --global --agent all   # the hooks use a copy of the binary: refresh it
+llca redact                      # apply the new rules to events already recorded
 ```
 
-Until the copy is refreshed, `agentledger doctor` and the dashboard warn that
+Until the copy is refreshed, `llca doctor` and the dashboard warn that
 the hooks run an older version.
 
-Remember that a secret masked by AgentLedger was still seen in clear by the
+Remember that a secret masked by llca was still seen in clear by the
 agent and by the service that runs its model. Rotate credentials that do not
 expire on their own.
 

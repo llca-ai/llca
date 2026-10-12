@@ -1,4 +1,4 @@
-//! Adding and removing AgentLedger hooks in Codex and Claude Code settings.
+//! Adding and removing llca hooks in Codex and Claude Code settings.
 //!
 //! Codex: hooks.json in ~/.codex or <project>/.codex.
 //! Claude Code: the "hooks" key of settings.json (~/.claude) or
@@ -73,7 +73,7 @@ pub fn config_file(target: &Path, agent: &str) -> PathBuf {
 /// Where `init` copies the collector, so that hooks never depend on the
 /// location of the installed package (Homebrew upgrades, moved folders…).
 pub fn collector_path(data_dir: &Path) -> PathBuf {
-    util::resolve(data_dir).join("bin").join("agentledger")
+    util::resolve(data_dir).join("bin").join("llca")
 }
 
 pub fn hook_command(data_dir: &Path, agent: &str) -> String {
@@ -89,8 +89,7 @@ pub fn hook_command(data_dir: &Path, agent: &str) -> String {
     ])
 }
 
-/// Recognises AgentLedger handlers, including those installed by the Python
-/// version (0.1–0.2), so that upgrading replaces them instead of duplicating.
+/// Recognises llca handlers, so that upgrading replaces them instead of duplicating.
 pub fn is_ours(handler: &Value) -> bool {
     let Some(h) = handler.as_object() else { return false };
     if h.get("type").and_then(Value::as_str) != Some("command") {
@@ -99,12 +98,8 @@ pub fn is_ours(handler: &Value) -> bool {
     let Some(argv) = h.get("command").and_then(Value::as_str).and_then(util::shell_split) else { return false };
     let name = |s: &str| Path::new(s).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let adapter_ok = |s: &str| agent_for(s).is_some();
-    // Rust: <bin>/agentledger --data-dir DIR hook --adapter X
-    if argv.len() == 6 && name(&argv[0]) == "agentledger" && argv[1] == "--data-dir" && argv[3] == "hook" && argv[4] == "--adapter" && adapter_ok(&argv[5]) {
-        return true;
-    }
-    // Python: <python> <dir>/agentledger.pyz --data-dir DIR hook --adapter X
-    argv.len() == 7 && name(&argv[1]) == "agentledger.pyz" && argv[2] == "--data-dir" && argv[4] == "hook" && argv[5] == "--adapter" && adapter_ok(&argv[6])
+    // <bin>/llca --data-dir DIR hook --adapter X
+    argv.len() == 6 && name(&argv[0]) == "llca" && argv[1] == "--data-dir" && argv[3] == "hook" && argv[4] == "--adapter" && adapter_ok(&argv[5])
 }
 
 fn remove_ours(config: &mut Map) -> Result<(), Error> {
@@ -146,7 +141,7 @@ fn remove_ours(config: &mut Map) -> Result<(), Error> {
 // ---------- Collector version ----------
 
 /// Command that refreshes the collector copy (and changes nothing else).
-pub const UPDATE_COMMAND: &str = "agentledger init --global --agent all";
+pub const UPDATE_COMMAND: &str = "llca init --global --agent all";
 
 /// `x.y.z` as numbers, for comparing versions.
 fn version_parts(v: &str) -> Vec<u64> {
@@ -230,8 +225,8 @@ pub fn collector_state(data_dir: &Path) -> Value {
 /// Copy the running binary next to the journal (atomic, executable by the user only).
 fn install_collector(data_dir: &Path) -> Result<(), Error> {
     let destination = collector_path(data_dir);
-    // AGENTLEDGER_BIN lets tests (and packagers) name the binary to install.
-    let current = match std::env::var_os("AGENTLEDGER_BIN") {
+    // LLCA_BIN lets tests (and packagers) name the binary to install.
+    let current = match std::env::var_os("LLCA_BIN") {
         Some(path) => PathBuf::from(path),
         None => std::env::current_exe()?,
     };
@@ -263,7 +258,7 @@ fn parse_config(bytes: &[u8], name: &str) -> Result<Map, Error> {
     }
 }
 
-/// Add (or remove) AgentLedger hooks for one agent. Returns a short report.
+/// Add (or remove) llca hooks for one agent. Returns a short report.
 pub fn configure(target: &Path, data_dir: &Path, uninstall: bool, agent: &str) -> Result<Value, Error> {
     let events = agent_events(agent).ok_or_else(|| Error(format!("Unsupported agent: {agent}")))?;
     let file = config_file(target, agent);
@@ -275,7 +270,7 @@ pub fn configure(target: &Path, data_dir: &Path, uninstall: bool, agent: &str) -
     if fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(Error(format!("{name} is a symbolic link; configure it manually")));
     }
-    let lock = File::options().create(true).truncate(false).write(true).open(path.with_file_name(".agentledger-install.lock"))?;
+    let lock = File::options().create(true).truncate(false).write(true).open(path.with_file_name(".llca-install.lock"))?;
     lock.lock()?;
 
     let before = read_config(&path)?;
@@ -309,7 +304,7 @@ pub fn configure(target: &Path, data_dir: &Path, uninstall: bool, agent: &str) -
     let mut backup = Value::Null;
     if changed {
         if let Some(b) = before.as_ref().filter(|b| !b.is_empty()) {
-            let backup_path = PathBuf::from(format!("{}.agentledger-backup-{}", path.display(), util::backup_stamp()));
+            let backup_path = PathBuf::from(format!("{}.llca-backup-{}", path.display(), util::backup_stamp()));
             util::atomic_write(&backup_path, b, 0o600)?;
             backup = Value::str(backup_path.to_string_lossy());
         }

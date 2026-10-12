@@ -7,13 +7,13 @@ use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use agentledger::install::{configure, inspect, is_ours};
-use agentledger::json::{self, Value};
-use agentledger::redact::MASK;
-use agentledger::store::{self, query, record, stats, Filter, CODEX_EVENTS};
-use agentledger::{obj, server, sqlite, util};
+use llca::install::{configure, inspect, is_ours};
+use llca::json::{self, Value};
+use llca::redact::MASK;
+use llca::store::{self, query, record, stats, Filter};
+use llca::{obj, server, sqlite, util};
 
-const BIN: &str = env!("CARGO_BIN_EXE_agentledger");
+const BIN: &str = env!("CARGO_BIN_EXE_llca");
 
 /// A temporary directory whose path contains a space and an apostrophe.
 struct Temp(PathBuf);
@@ -21,8 +21,8 @@ struct Temp(PathBuf);
 impl Temp {
     fn new() -> Temp {
         // Library calls to configure() must install the real binary, not the test harness.
-        std::env::set_var("AGENTLEDGER_BIN", BIN);
-        let name = format!("agentledger test ' {}", util::base64url(&util::random_bytes(6).unwrap()));
+        std::env::set_var("LLCA_BIN", BIN);
+        let name = format!("llca test ' {}", util::base64url(&util::random_bytes(6).unwrap()));
         let dir = std::env::temp_dir().join(name);
         fs::create_dir_all(&dir).unwrap();
         Temp(dir)
@@ -279,13 +279,22 @@ fn http_access_control_and_assets() {
     assert_eq!(http(port, "/api/events", &[auth, ("Origin", "https://evil.example".into())]).0, 403);
     let (code, head, body) = http(port, "/", &[]);
     assert_eq!(code, 200);
-    assert!(body.contains("AgentLedger") && body.contains("data-kind=\"shell\"") && body.contains("data-kind=\"app\"") && !body.contains(" style="));
+    assert!(body.contains("llca") && body.contains("data-kind=\"shell\"") && body.contains("data-kind=\"app\"") && !body.contains(" style="));
     assert!(head.contains("frame-ancestors 'none'") && head.contains("img-src 'self' blob:"));
     // App icons: bare names only, token required, unknown apps are a 404.
     assert_eq!(http(port, "/api/app-icon?name=Finder", &[]).0, 401);
     let auth = ("Authorization", format!("Bearer {token}"));
     assert_eq!(http(port, "/api/app-icon?name=..%2Fetc%2Fpasswd", std::slice::from_ref(&auth)).0, 400);
     assert_eq!(http(port, "/api/app-icon", std::slice::from_ref(&auth)).0, 400);
+    // The theme: saved by POST with the token, applied by /theme.js before the first paint.
+    assert_eq!(http_method(port, "POST", "/api/theme?set=dark", &[]).0, 401);
+    assert_eq!(http(port, "/api/theme?set=dark", std::slice::from_ref(&auth)).0, 405);
+    assert_eq!(http_method(port, "POST", "/api/theme?set=purple", std::slice::from_ref(&auth)).0, 400);
+    assert!(http(port, "/theme.js", &[]).2.contains("Auto"));
+    assert_eq!(http_method(port, "POST", "/api/theme?set=dark", std::slice::from_ref(&auth)).0, 200);
+    assert!(http(port, "/theme.js", &[]).2.contains("dataset.theme = \"dark\""));
+    assert_eq!(http_method(port, "POST", "/api/theme?set=auto", std::slice::from_ref(&auth)).0, 200);
+    assert!(http(port, "/theme.js", &[]).2.contains("Auto"));
     assert_eq!(http(port, "/api/overview?tz=120&from=2026-01-01T00:00:00.000%2B00:00", std::slice::from_ref(&auth)).0, 200);
     assert_eq!(http(port, "/api/overview?from=1%27%20OR%201%3D1", std::slice::from_ref(&auth)).0, 400);
     assert_eq!(http(port, "/api/overview?tz=99999", std::slice::from_ref(&auth)).0, 400);
@@ -302,7 +311,7 @@ fn http_access_control_and_assets() {
     assert_eq!(http_method(port, "POST", "/api/secret-alert/restore?batch=1", std::slice::from_ref(&auth)).0, 200);
     assert_eq!(count(&overview(), "alert_secrets"), 1, "and so is an undo");
     assert_eq!(http(port, "/api/events?to=2020-01-01T00:00:00.000Z", std::slice::from_ref(&auth)).0, 200);
-    assert_eq!(http(port, "/api/app-icon?name=No%20Such%20App%20AgentLedger", std::slice::from_ref(&auth)).0, 204);
+    assert_eq!(http(port, "/api/app-icon?name=No%20Such%20App%20llca", std::slice::from_ref(&auth)).0, 204);
     // Secret alert: POST only, token required, numeric parameters.
     assert_eq!(http_method(port, "POST", "/api/secret-alert/dismiss?through=9", &[]).0, 401);
     assert_eq!(http(port, "/api/secret-alert/dismiss?through=9", std::slice::from_ref(&auth)).0, 405);
@@ -512,9 +521,9 @@ fn watch_rules_mark_actions_without_changing_the_journal() {
     let ov = store::overview(&t.data(), &Filter::default(), 0, false).unwrap();
     assert_eq!(ov.get("watch").unwrap().get("exists"), Some(&Value::Bool(false)));
     // init creates the file with its explanations, and never overwrites it.
-    assert!(agentledger::watch::create_if_missing(&t.data()).unwrap());
+    assert!(llca::watch::create_if_missing(&t.data()).unwrap());
     fs::write(t.data().join("watch.rules"), "file .env # Touched a .env file\nalert command kubectl * --context prod # Touched production\ncomand oops # typo\nfile ~/.ssh/ # Touched SSH keys\n").unwrap();
-    assert!(!agentledger::watch::create_if_missing(&t.data()).unwrap());
+    assert!(!llca::watch::create_if_missing(&t.data()).unwrap());
 
     let labels = |row: &Value| -> Vec<String> { row.get("watch").unwrap().as_array().unwrap().iter().map(|w| w.get("label").unwrap().as_str().unwrap().to_string()).collect() };
     let rows = all(&t.data());
@@ -543,7 +552,7 @@ fn watch_rules_mark_actions_without_changing_the_journal() {
 
 #[test]
 fn outdated_collector_is_reported() {
-    use agentledger::install::{collector_path, collector_state, older};
+    use llca::install::{collector_path, collector_state, older};
     use std::os::unix::fs::PermissionsExt;
     assert!(older("0.6.1", "0.6.2") && older("0.9.9", "0.10.0") && !older("0.6.2", "0.6.2") && !older("1.0.0", "0.9.9"));
     let t = Temp::new();
@@ -552,7 +561,7 @@ fn outdated_collector_is_reported() {
     assert_eq!(state("outdated"), Value::Bool(false));
     // init copies this very binary: up to date.
     configure(&t.codex(), &t.data(), false, "codex").unwrap();
-    assert_eq!(state("version").as_str(), Some(agentledger::cli::VERSION));
+    assert_eq!(state("version").as_str(), Some(llca::cli::VERSION));
     assert_eq!(state("outdated"), Value::Bool(false));
     let doctor = |args: &[&str]| {
         let mut cmd = Command::new(BIN);
@@ -568,11 +577,11 @@ fn outdated_collector_is_reported() {
     };
     fake("#!/bin/sh\necho 0.5.0\n");
     assert_eq!((state("version").as_str(), state("outdated")), (Some("0.5.0"), Value::Bool(true)));
-    assert_eq!(state("fix").as_str(), Some("agentledger init --global --agent all"));
+    assert_eq!(state("fix").as_str(), Some("llca init --global --agent all"));
     let out = doctor(&[]);
     assert_eq!(out.status.code(), Some(1));
     let text = String::from_utf8_lossy(&out.stdout);
-    assert!(text.contains("1 problem to fix") && text.contains("older than this one") && text.contains("Fix: agentledger init --global --agent all"), "{text}");
+    assert!(text.contains("1 problem to fix") && text.contains("older than this one") && text.contains("Fix: llca init --global --agent all"), "{text}");
     // A copy that cannot say its version counts as outdated.
     fake("#!/bin/sh\nexit 1\n# a different length, so the cached answer is not reused\n");
     assert_eq!((state("version"), state("outdated")), (Value::Null, Value::Bool(true)));
@@ -587,7 +596,7 @@ fn codex_hook_command_points_to_private_collector() {
     configure(&t.codex(), &t.data(), false, "codex").unwrap();
     let argv = util::shell_split(&hook_command(&t.codex().join("hooks.json"), "Stop", 0)).unwrap();
     let data = util::resolve(&t.data());
-    assert_eq!(argv[0], data.join("bin/agentledger").to_string_lossy());
+    assert_eq!(argv[0], data.join("bin/llca").to_string_lossy());
     assert_eq!(&argv[1..], ["--data-dir", &data.to_string_lossy(), "hook", "--adapter", "codex-v0"]);
 }
 
@@ -683,33 +692,12 @@ fn journal_from_python_v01_is_migrated() {
 }
 
 #[test]
-fn upgrade_replaces_python_hooks_instead_of_duplicating() {
-    let t = Temp::new();
-    fs::create_dir_all(t.codex()).unwrap();
-    let data = util::resolve(&t.data());
-    let python = format!(
-        "/opt/homebrew/opt/python@3.14/bin/python3.14 {} --data-dir {} hook --adapter codex-v0",
-        util::shell_quote(&data.join("bin/agentledger.pyz").to_string_lossy()),
-        util::shell_quote(&data.to_string_lossy())
-    );
-    let mut hooks = json::Map::new();
-    for event in CODEX_EVENTS {
-        hooks.insert(event, Value::Array(vec![obj![("hooks", Value::Array(vec![obj![("type", "command"), ("command", python.clone()), ("timeout", Value::int(3))]]))]]));
-    }
-    let mut pre = hooks.get("PreToolUse").unwrap().as_array().unwrap().clone();
-    pre.insert(0, json::parse(r#"{"matcher": "Bash", "hooks": [{"type": "command", "command": "rtk hook codex"}]}"#).unwrap());
-    hooks.insert("PreToolUse", Value::Array(pre));
-    fs::write(t.codex().join("hooks.json"), obj![("hooks", Value::Object(hooks))].to_pretty()).unwrap();
-    assert!(is_ours(&obj![("type", "command"), ("command", python.clone())]));
-    configure(&t.codex(), &t.data(), false, "codex").unwrap();
-    let text = fs::read_to_string(t.codex().join("hooks.json")).unwrap();
-    assert!(!text.contains("agentledger.pyz"));
-    assert!(text.contains("rtk hook codex"));
-    let config = json::parse(&text).unwrap();
-    for event in CODEX_EVENTS {
-        let ours = config.get("hooks").unwrap().get(event).unwrap().as_array().unwrap().iter().filter(|g| is_ours(&g.get("hooks").unwrap().as_array().unwrap()[0])).count();
-        assert_eq!(ours, 1, "{event}");
-    }
+fn only_llca_handlers_are_ours() {
+    let ours = |command: &str| is_ours(&obj![("type", "command"), ("command", command)]);
+    assert!(ours("'/Users/me/Library/Application Support/llca/bin/llca' --data-dir /tmp/d hook --adapter codex-v0"));
+    assert!(!ours("rtk hook codex"));
+    // No compatibility with the former name: its hooks are not recognised.
+    assert!(!ours("/tmp/d/bin/agentledger --data-dir /tmp/d hook --adapter codex-v0"));
 }
 
 #[test]
@@ -750,7 +738,7 @@ fn logs_json_and_text_output() {
 #[test]
 fn demo_data_is_well_formed() {
     let t = Temp::new();
-    agentledger::demo::fill(&t.data()).unwrap();
+    llca::demo::fill(&t.data()).unwrap();
     let rows = all(&t.data());
     assert_eq!(rows.len(), 76);
     let dump = Value::Array(rows).to_compact();

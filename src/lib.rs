@@ -1,4 +1,4 @@
-//! AgentLedger: a local, private log of what AI coding agents do on this machine.
+//! llca (Local Ledger for AI Coding Agents): a local, private log of what AI coding agents do on this machine.
 //!
 //! No third-party crates: the collector runs on every agent action, so all
 //! the code it executes lives in this repository. SQLite is the system library.
