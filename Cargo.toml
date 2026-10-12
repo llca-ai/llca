@@ -3,7 +3,7 @@ name = "llca"
 version = "0.7.4"
 authors = ["Yassine Bouayyad"]
 edition = "2021"
-description = "Local Ledger for AI Coding Agents: a local, private log of what Codex and Claude Code do on your machine"
+description = "Local Ledger for Coding Agents: a local, private log of what Codex and Claude Code do on your machine"
 license = "MIT"
 rust-version = "1.89"
 

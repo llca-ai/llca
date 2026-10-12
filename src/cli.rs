@@ -14,7 +14,7 @@ use crate::demo;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const USAGE: &str = "\
-llca: Local Ledger for AI Coding Agents. A local log of what Codex and
+llca: Local Ledger for Coding Agents. A local log of what Codex and
 Claude Code do on this machine.
 
 Usage: llca [--data-dir PATH] COMMAND [OPTIONS]

@@ -1,6 +1,6 @@
 # llca · v0.7
 
-**Local Ledger for AI Coding Agents.** A **local, private** log of what **Codex** and **Claude Code** do on your machine: every tool call, in plain words, with a dashboard. One self-contained binary, no account, no server, nothing sent anywhere.
+**Local Ledger for Coding Agents.** A **local, private** log of what **Codex** and **Claude Code** do on your machine: every tool call, in plain words, with a dashboard. One self-contained binary, no account, no server, nothing sent anywhere.
 
 Written in Rust (versions 0.1–0.2 were a Python prototype).
 
