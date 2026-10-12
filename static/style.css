@@ -182,7 +182,7 @@
   --focus: #7fcca0;
 }
 * { box-sizing: border-box; }
-body { margin: 0; display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 100vh; }
+body { margin: 0; display: grid; grid-template-columns: 216px minmax(0, 1fr); min-height: 100vh; }
 button { font: inherit; color: inherit; cursor: pointer; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 [hidden] { display: none !important; }
@@ -191,11 +191,11 @@ h1, h2, h3, h4, p { margin: 0; }
 
 /* Rail */
 .rail { position: sticky; top: 0; height: 100vh; padding: 26px 18px; border-right: 1px solid var(--rule); background: var(--surface); display: flex; flex-direction: column; gap: 26px; }
-.brand { display: flex; align-items: center; gap: 9px; font-weight: 650; font-size: 17px; color: var(--ink); text-decoration: none; letter-spacing: -0.2px; }
+.brand { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; font-weight: 650; font-size: 17px; color: var(--ink); text-decoration: none; letter-spacing: -0.2px; }
 /* The llca-ai logo (an eye around a terminal prompt): outline in the ink
    colour, so it follows the theme; dark iris with a green prompt. In the dark
    theme the iris is a lighter grey with a light ring, to stand out. */
-.mark { width: 34px; height: 21px; flex: none; display: block; }
+.mark { width: 46px; height: 28px; flex: none; display: block; }
 .mark-eye { stroke: var(--ink); }
 .mark-iris { fill: #14161a; }
 .mark-prompt { stroke: #2ee6b0; }
@@ -525,6 +525,8 @@ h1 { font-size: 28px; font-weight: 650; letter-spacing: -0.6px; }
 }
 @media (max-width: 760px) {
   body { display: block; }
+  .brand { flex-direction: row; align-items: center; gap: 9px; }
+  .mark { width: 34px; height: 21px; }
   .rail { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 14px 16px; border-right: 0; border-bottom: 1px solid var(--rule); }
   .pages { flex-direction: row; gap: 4px; }
   .agents { flex-direction: row; gap: 6px; margin-left: auto; }
