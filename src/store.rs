@@ -221,12 +221,14 @@ pub fn record(data_dir: &Path, payload: &Value, origin: &str, agent: &str, at: O
         map.insert("received_at", Value::str(at));
     }
     let field = |k: &str| map.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
-    let values: Vec<String> = ["received_at", "session_id", "event", "tool", "status", "category", "agent"].iter().map(|k| field(k)).collect();
+    let values: Vec<String> =
+        ["received_at", "session_id", "event", "tool", "status", "category", "agent"].iter().map(|k| field(k)).collect();
     let json = row.to_compact();
     let con = connect(data_dir)?;
     let mut params: Vec<Param> = values.iter().map(|v| Param::Text(v)).collect();
     params.push(Param::Text(&json));
-    Ok(con.execute("INSERT INTO events(received_at,session_id,event,tool,status,category,agent,payload) VALUES(?,?,?,?,?,?,?,?)", &params)?)
+    Ok(con
+        .execute("INSERT INTO events(received_at,session_id,event,tool,status,category,agent,payload) VALUES(?,?,?,?,?,?,?,?)", &params)?)
 }
 
 /// Apply the current redaction rules to events already stored, for secrets
@@ -262,7 +264,11 @@ pub fn redact_journal(data_dir: &Path) -> Result<Redacted, Error> {
             // Kinds of what is masked now, as the collector records them, so
             // that the dashboard names them ("GitHub token", not "kind not
             // recorded"). Kinds already listed are kept.
-            let mut kinds: Vec<String> = payload.get("secrets").and_then(Value::as_array).map(|l| l.iter().filter_map(Value::as_str).map(String::from).collect()).unwrap_or_default();
+            let mut kinds: Vec<String> = payload
+                .get("secrets")
+                .and_then(Value::as_array)
+                .map(|l| l.iter().filter_map(Value::as_str).map(String::from).collect())
+                .unwrap_or_default();
             for kind in found {
                 if !kinds.contains(&kind) {
                     kinds.push(kind);
@@ -365,7 +371,11 @@ fn scope<'a>(f: &Filter<'a>, clauses: &mut Vec<&'static str>, params: &mut Vec<P
 }
 
 fn where_sql(clauses: &[&str]) -> String {
-    if clauses.is_empty() { String::new() } else { format!(" WHERE {}", clauses.join(" AND ")) }
+    if clauses.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", clauses.join(" AND "))
+    }
 }
 
 /// One event read for the list, with what the filters need to know about it.
@@ -406,9 +416,21 @@ impl Reader<'_> {
         let services = crate::resources::services_of(&tool, &category, &args);
         let mut kept = self.f.service.is_empty() || services.iter().any(|(name, _)| name == self.f.service);
         let names = services.iter().map(|(name, _)| name.clone()).collect();
-        let found = if tool.is_empty() { Vec::new() } else { crate::watch::matches(&self.watch, &crate::watch::Subject::of(&tool, &category, &args, names)) };
+        let found = if tool.is_empty() {
+            Vec::new()
+        } else {
+            crate::watch::matches(&self.watch, &crate::watch::Subject::of(&tool, &category, &args, names))
+        };
         kept &= self.f.rule.is_empty() || found.iter().any(|m| m.rule.label == self.f.rule);
-        let e = Seen { tool: &tool, category: &category, event: &event, status: &status, args: &args, secrets: v.get("secrets").is_some() || raw.contains("[REDACTED]") || raw.contains("[SECRET MASQU"), watched: !found.is_empty() };
+        let e = Seen {
+            tool: &tool,
+            category: &category,
+            event: &event,
+            status: &status,
+            args: &args,
+            secrets: v.get("secrets").is_some() || raw.contains("[REDACTED]") || raw.contains("[SECRET MASQU"),
+            watched: !found.is_empty(),
+        };
         let (kind, result) = (tool.is_empty() || e.kind(self.f.kind), tool.is_empty() || e.result(self.f.result));
         let found = crate::watch::to_json(&found);
         if let Some(map) = v.as_object_mut() {
@@ -467,7 +489,11 @@ impl Seen<'_> {
 
     fn kind(&self, kind: &str) -> bool {
         let tool = self.tool;
-        let other = !self.shell() && !EDIT_TOOLS.contains(&tool) && !READ_TOOLS.contains(&tool) && !WEB_TOOLS.contains(&tool) && !tool.starts_with("mcp__");
+        let other = !self.shell()
+            && !EDIT_TOOLS.contains(&tool)
+            && !READ_TOOLS.contains(&tool)
+            && !WEB_TOOLS.contains(&tool)
+            && !tool.starts_with("mcp__");
         match kind {
             "" => true,
             "shell" => self.shell(),
@@ -478,7 +504,13 @@ impl Seen<'_> {
             "computer" => self.computer(),
             // An application opened by a command (/Applications/X.app, open -a,
             // tell application), or Computer Use.
-            "app" => self.computer() || (self.shell() && { let c = self.command().to_ascii_lowercase(); c.contains(".app") || c.contains("open") || c.contains("tell") }),
+            "app" => {
+                self.computer()
+                    || (self.shell() && {
+                        let c = self.command().to_ascii_lowercase();
+                        c.contains(".app") || c.contains("open") || c.contains("tell")
+                    })
+            }
             "other" => other,
             "secret" => self.secret(),
             "attention" => {
@@ -488,7 +520,10 @@ impl Seen<'_> {
                     || FLAGGED_TOOLS.contains(&tool)
                     || self.result("problem")
                     || self.result("waiting")
-                    || (self.shell() && { let c = self.command(); RISK_WORDS.iter().any(|w| c.contains(w)) })
+                    || (self.shell() && {
+                        let c = self.command();
+                        RISK_WORDS.iter().any(|w| c.contains(w))
+                    })
             }
             _ => false,
         }
@@ -533,7 +568,8 @@ pub fn query(data_dir: &Path, f: &Filter) -> Result<Page, Error> {
     let by_call = !f.kind.is_empty() || !f.result.is_empty();
     let filtered = by_call || !f.service.is_empty() || !f.rule.is_empty();
     let batch = if filtered { BATCH } else { limit as i64 };
-    let sql = format!("SELECT id,agent,payload FROM events{} ORDER BY id DESC LIMIT ?", where_sql(&[clauses.as_slice(), &["id<?"]].concat()));
+    let sql =
+        format!("SELECT id,agent,payload FROM events{} ORDER BY id DESC LIMIT ?", where_sql(&[clauses.as_slice(), &["id<?"]].concat()));
     let start = if f.before != 0 { f.before } else { i64::MAX };
     let mut cursor = start;
     let mut out: Vec<Listed> = Vec::new();
@@ -576,7 +612,14 @@ pub fn query(data_dir: &Path, f: &Filter) -> Result<Page, Error> {
                 if *mark == (true, true) {
                     marks.remove(&r.call);
                     calls.insert(r.call.clone());
-                    out.extend(recent.iter().filter(|x| x.call == r.call).map(|x| Listed { id: x.id, call: x.call.clone(), value: x.value.clone(), kept: true, kind: true, result: true }));
+                    out.extend(recent.iter().filter(|x| x.call == r.call).map(|x| Listed {
+                        id: x.id,
+                        call: x.call.clone(),
+                        value: x.value.clone(),
+                        kept: true,
+                        kind: true,
+                        result: true,
+                    }));
                     recent.retain(|x| x.call != r.call);
                     out.push(r);
                 } else {
@@ -607,10 +650,16 @@ pub fn query(data_dir: &Path, f: &Filter) -> Result<Page, Error> {
         // before it (on the next page). The dashboard drops duplicates.
         let mut edges = Vec::new();
         if start != i64::MAX {
-            edges.push(format!("SELECT id,agent,payload FROM events{} ORDER BY id LIMIT {NEAR}", where_sql(&[clauses.as_slice(), &["id>=?"]].concat())));
+            edges.push(format!(
+                "SELECT id,agent,payload FROM events{} ORDER BY id LIMIT {NEAR}",
+                where_sql(&[clauses.as_slice(), &["id>=?"]].concat())
+            ));
         }
         if next.is_some() {
-            edges.push(format!("SELECT id,agent,payload FROM events{} ORDER BY id DESC LIMIT {NEAR}", where_sql(&[clauses.as_slice(), &["id<?"]].concat())));
+            edges.push(format!(
+                "SELECT id,agent,payload FROM events{} ORDER BY id DESC LIMIT {NEAR}",
+                where_sql(&[clauses.as_slice(), &["id<?"]].concat())
+            ));
         }
         let mut seen: HashSet<i64> = out.iter().map(|r| r.id).collect();
         let bounds = [start, cursor];
@@ -697,7 +746,10 @@ pub fn dismiss_secrets(data_dir: &Path, f: &Filter, through: i64) -> Result<i64,
     let mut all = vec![Param::Int(batch)];
     all.extend(params_copy(&params));
     all.push(Param::Int(through));
-    con.execute(&format!("INSERT OR IGNORE INTO dismissed_secrets(call,batch) SELECT DISTINCT {CALL}, ? FROM events{}", where_sql(&clauses)), &all)?;
+    con.execute(
+        &format!("INSERT OR IGNORE INTO dismissed_secrets(call,batch) SELECT DISTINCT {CALL}, ? FROM events{}", where_sql(&clauses)),
+        &all,
+    )?;
     Ok(batch)
 }
 
@@ -730,7 +782,11 @@ pub fn overview_with_map_limit(data_dir: &Path, f: &Filter, tz_minutes: i64, wit
     // Every figure but the shell commands comes from one reading of the
     // period, in Rust: each event is read and parsed once (one SQL query per
     // figure read the whole journal again each time, 3 s for 150,000 events).
-    let mut sum = Summary { dismissed: con.query("SELECT call FROM dismissed_secrets", &[])?.iter().filter_map(|r| r[0].text().map(String::from)).collect(), tz_minutes, ..Default::default() };
+    let mut sum = Summary {
+        dismissed: con.query("SELECT call FROM dismissed_secrets", &[])?.iter().filter_map(|r| r[0].text().map(String::from)).collect(),
+        tz_minutes,
+        ..Default::default()
+    };
     let rules = crate::watch::load(data_dir);
     let mut watch = WatchCount::new(&rules.0);
     let mut map = crate::resources::MapBuilder::default();
@@ -745,7 +801,10 @@ pub fn overview_with_map_limit(data_dir: &Path, f: &Filter, tz_minutes: i64, wit
     let map_from = map_from.map_or(0, |id| id + 1);
 
     const BATCH: i64 = 5000;
-    let sql = format!("SELECT id, agent, session_id, event, tool, category, status, received_at, payload FROM events{} ORDER BY id LIMIT {BATCH}", and("id>?"));
+    let sql = format!(
+        "SELECT id, agent, session_id, event, tool, category, status, received_at, payload FROM events{} ORDER BY id LIMIT {BATCH}",
+        and("id>?")
+    );
     let mut after = 0;
     loop {
         let mut page = params_copy(&params);
@@ -786,7 +845,10 @@ pub fn overview_with_map_limit(data_dir: &Path, f: &Filter, tz_minutes: i64, wit
     let limit = if with_commands { MAX_COMMANDS } else { 0 };
     let commands: Vec<Value> = con
         .query(
-            &format!("SELECT received_at, agent, json_extract(payload,'$.arguments') FROM events{} ORDER BY id DESC LIMIT {limit}", and("event='PreToolUse' AND category='shell'")),
+            &format!(
+                "SELECT received_at, agent, json_extract(payload,'$.arguments') FROM events{} ORDER BY id DESC LIMIT {limit}",
+                and("event='PreToolUse' AND category='shell'")
+            ),
             &params,
         )?
         .iter()
@@ -867,11 +929,25 @@ impl<'r> WatchCount<'r> {
                 Value::Array(
                     self.labels
                         .into_iter()
-                        .map(|(label, alert, lines, calls)| obj![("label", label), ("alert", alert), ("lines", Value::Array(lines.into_iter().map(Value::int).collect())), ("actions", Value::int(calls.len() as i64))])
+                        .map(|(label, alert, lines, calls)| obj![
+                            ("label", label),
+                            ("alert", alert),
+                            ("lines", Value::Array(lines.into_iter().map(Value::int).collect())),
+                            ("actions", Value::int(calls.len() as i64))
+                        ])
                         .collect()
                 )
             ),
-            ("errors", Value::Array(self.rules.errors.iter().map(|(line, message)| obj![("line", Value::int(*line as i64)), ("message", message.clone())]).collect())),
+            (
+                "errors",
+                Value::Array(
+                    self.rules
+                        .errors
+                        .iter()
+                        .map(|(line, message)| obj![("line", Value::int(*line as i64)), ("message", message.clone())])
+                        .collect()
+                )
+            ),
         ]
     }
 }
@@ -995,16 +1071,36 @@ impl Summary {
             ("first", text(self.first)),
             ("last", text(self.last)),
         ];
-        let by_day = self.days.into_iter().map(|((day, agent), (n, failed))| obj![("day", text(day)), ("agent", agent), ("actions", int(n)), ("failed", int(failed))]).collect();
+        let by_day = self
+            .days
+            .into_iter()
+            .map(|((day, agent), (n, failed))| obj![("day", text(day)), ("agent", agent), ("actions", int(n)), ("failed", int(failed))])
+            .collect();
         let mut tools: Vec<_> = self.tools.into_iter().collect();
         tools.sort_by(|a, b| b.1 .0.cmp(&a.1 .0).then_with(|| a.0.cmp(&b.0)));
-        let by_tool = tools.into_iter().take(200).map(|((tool, category), (n, failed))| obj![("tool", tool), ("category", category), ("actions", int(n)), ("failed", int(failed))]).collect();
+        let by_tool = tools
+            .into_iter()
+            .take(200)
+            .map(|((tool, category), (n, failed))| {
+                obj![("tool", tool), ("category", category), ("actions", int(n)), ("failed", int(failed))]
+            })
+            .collect();
         let mut projects: Vec<_> = self.projects.into_iter().collect();
         projects.sort_by(|a, b| b.1 .0.cmp(&a.1 .0).then_with(|| a.0.cmp(&b.0)));
-        let projects = projects.into_iter().take(20).map(|(cwd, (n, sessions))| obj![("cwd", cwd), ("actions", int(n)), ("sessions", int(sessions.len() as i64))]).collect();
+        let projects = projects
+            .into_iter()
+            .take(20)
+            .map(|(cwd, (n, sessions))| obj![("cwd", cwd), ("actions", int(n)), ("sessions", int(sessions.len() as i64))])
+            .collect();
         let mut kinds: Vec<_> = self.kinds.into_iter().collect();
         kinds.sort_by(|a, b| b.1 .0.len().cmp(&a.1 .0.len()).then_with(|| a.0.cmp(&b.0)));
-        let mut secret_kinds: Vec<Value> = kinds.into_iter().take(50).map(|((kind, agent), (calls, last))| obj![("kind", kind), ("agent", agent), ("calls", int(calls.len() as i64)), ("last", last)]).collect();
+        let mut secret_kinds: Vec<Value> = kinds
+            .into_iter()
+            .take(50)
+            .map(|((kind, agent), (calls, last))| {
+                obj![("kind", kind), ("agent", agent), ("calls", int(calls.len() as i64)), ("last", last)]
+            })
+            .collect();
         for (agent, (calls, last)) in self.unknown {
             secret_kinds.push(obj![("kind", Value::Null), ("agent", agent), ("calls", int(calls.len() as i64)), ("last", last)]);
         }

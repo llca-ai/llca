@@ -1,0 +1,4 @@
+# `cargo fmt` reads this. Lines up to 140 characters: the code favours one
+# readable line per idea over many short wrapped ones.
+max_width = 140
+use_small_heuristics = "Max"

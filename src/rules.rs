@@ -303,8 +303,12 @@ mod tests {
 
     #[test]
     fn password_options() {
-        let r = parse("password-option -p glued mysql mariadb\npassword-option -p with=login docker\npassword-option -a redis-cli").unwrap();
-        assert_eq!(r.password_options[0], PasswordOption { flag: "-p".into(), glued: true, with: None, programs: vec!["mysql".into(), "mariadb".into()] });
+        let r =
+            parse("password-option -p glued mysql mariadb\npassword-option -p with=login docker\npassword-option -a redis-cli").unwrap();
+        assert_eq!(
+            r.password_options[0],
+            PasswordOption { flag: "-p".into(), glued: true, with: None, programs: vec!["mysql".into(), "mariadb".into()] }
+        );
         assert_eq!(r.password_options[1].with.as_deref(), Some("login"));
         assert!(!r.password_options[2].glued);
     }

@@ -79,7 +79,11 @@ fn read_request(stream: &mut TcpStream) -> Option<Request> {
     let method = first.next()?.to_string();
     let target = first.next()?.to_string();
     let (path, query) = target.split_once('?').map(|(p, q)| (p.to_string(), q.to_string())).unwrap_or((target, String::new()));
-    let headers = lines.take_while(|l| !l.is_empty()).filter_map(|l| l.split_once(':')).map(|(k, v)| (k.trim().to_string(), v.trim().to_string())).collect();
+    let headers = lines
+        .take_while(|l| !l.is_empty())
+        .filter_map(|l| l.split_once(':'))
+        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+        .collect();
     Some(Request { method, path, query, headers })
 }
 
@@ -172,7 +176,8 @@ impl Dashboard {
             return error(&mut stream, 403, "Origin rejected");
         }
         // Only these actions change anything, and only by POST.
-        let writes = matches!(req.path.as_str(), "/api/secret-alert/dismiss" | "/api/secret-alert/restore" | "/api/watch/open" | "/api/theme");
+        let writes =
+            matches!(req.path.as_str(), "/api/secret-alert/dismiss" | "/api/secret-alert/restore" | "/api/watch/open" | "/api/theme");
         if req.method != if writes { "POST" } else { "GET" } {
             return error(&mut stream, 405, "Method not allowed");
         }
@@ -190,20 +195,41 @@ impl Dashboard {
                             Err(_) => return error(&mut stream, 400, "Invalid parameter"),
                         },
                     };
-                    let (q, category, session, service) = (param(&req.query, "q"), param(&req.query, "category"), param(&req.query, "session"), param(&req.query, "service"));
+                    let (q, category, session, service) =
+                        (param(&req.query, "q"), param(&req.query, "category"), param(&req.query, "session"), param(&req.query, "service"));
                     let (rule, kind, result) = (param(&req.query, "rule"), param(&req.query, "kind"), param(&req.query, "result"));
                     let Some((agent, from, to, project)) = scope_params(&req.query) else {
                         return error(&mut stream, 400, "Invalid parameter");
                     };
-                    if !(kind.is_empty() || store::KINDS.contains(&kind.as_str())) || !(result.is_empty() || store::RESULTS.contains(&result.as_str())) {
+                    if !(kind.is_empty() || store::KINDS.contains(&kind.as_str()))
+                        || !(result.is_empty() || store::RESULTS.contains(&result.as_str()))
+                    {
                         return error(&mut stream, 400, "Invalid parameter");
                     }
-                    let filter = Filter { search: &q, category: &category, session: &session, agent: &agent, before, limit: 200, from: &from, to: &to, project: &project, service: &service, rule: &rule, kind: &kind, result: &result };
+                    let filter = Filter {
+                        search: &q,
+                        category: &category,
+                        session: &session,
+                        agent: &agent,
+                        before,
+                        limit: 200,
+                        from: &from,
+                        to: &to,
+                        project: &project,
+                        service: &service,
+                        rule: &rule,
+                        kind: &kind,
+                        result: &result,
+                    };
                     match store::query(&self.data_dir, &filter) {
                         Ok(page) => json(
                             &mut stream,
                             200,
-                            obj![("events", Value::Array(page.events)), ("next", page.next.map_or(Value::Null, Value::int)), ("scanned", Value::int(page.scanned as i64))],
+                            obj![
+                                ("events", Value::Array(page.events)),
+                                ("next", page.next.map_or(Value::Null, Value::int)),
+                                ("scanned", Value::int(page.scanned as i64))
+                            ],
                         ),
                         Err(_) => error(&mut stream, 500, "Log unavailable"),
                     }
@@ -222,7 +248,11 @@ impl Dashboard {
                     let filter = Filter { agent: &agent, from: &from, to: &to, project: &project, ..Default::default() };
                     let key = req.query.clone();
                     let before = journal_state(&self.data_dir);
-                    let cached = self.overviews.lock().ok().and_then(|c| c.iter().find(|(k, s, _)| *k == key && *s == before).map(|(_, _, body)| body.clone()));
+                    let cached = self
+                        .overviews
+                        .lock()
+                        .ok()
+                        .and_then(|c| c.iter().find(|(k, s, _)| *k == key && *s == before).map(|(_, _, body)| body.clone()));
                     if let Some(body) = cached {
                         return respond(&mut stream, 200, body.as_bytes(), "application/json; charset=utf-8");
                     }
@@ -307,7 +337,9 @@ impl Dashboard {
                 "/api/theme" => {
                     let path = self.data_dir.join(THEME_FILE);
                     let saved = match param(&req.query, "set").as_str() {
-                        "auto" => fs::remove_file(&path).or_else(|e| if e.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(e) }),
+                        "auto" => {
+                            fs::remove_file(&path).or_else(|e| if e.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(e) })
+                        }
                         theme @ ("light" | "dark") => util::atomic_write(&path, theme.as_bytes(), 0o600),
                         _ => return error(&mut stream, 400, "Invalid parameter"),
                     };
@@ -349,7 +381,12 @@ impl Dashboard {
 }
 
 /// Bind the dashboard. Returns the listener and its URL (with the token).
-pub fn bind(data_dir: &Path, targets: Vec<(String, PathBuf)>, port: u16, demo: bool) -> std::io::Result<(TcpListener, Arc<Dashboard>, String)> {
+pub fn bind(
+    data_dir: &Path,
+    targets: Vec<(String, PathBuf)>,
+    port: u16,
+    demo: bool,
+) -> std::io::Result<(TcpListener, Arc<Dashboard>, String)> {
     let listener = TcpListener::bind(("127.0.0.1", port))?;
     let port = listener.local_addr()?.port();
     let token = util::base64url(&util::random_bytes(32)?);
@@ -384,7 +421,11 @@ pub fn serve_until(listener: TcpListener, dashboard: Arc<Dashboard>, stop: impl 
 fn open_text_file(path: &Path, reveal: bool) -> Result<(), String> {
     let folder = path.parent().unwrap_or(path);
     let attempts: Vec<(&str, Vec<&str>, &Path)> = if cfg!(target_os = "macos") {
-        if reveal { vec![("open", vec!["-R"], path)] } else { vec![("open", vec!["-t"], path), ("open", vec!["-e"], path)] }
+        if reveal {
+            vec![("open", vec!["-R"], path)]
+        } else {
+            vec![("open", vec!["-t"], path), ("open", vec!["-e"], path)]
+        }
     } else if reveal {
         vec![("xdg-open", vec![], folder)]
     } else {
@@ -404,9 +445,5 @@ fn open_text_file(path: &Path, reveal: bool) -> Result<(), String> {
 
 pub fn open_browser(url: &str) {
     let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
-    let _ = std::process::Command::new(opener)
-        .arg(url)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn();
+    let _ = std::process::Command::new(opener).arg(url).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn();
 }

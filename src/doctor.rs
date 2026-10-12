@@ -48,7 +48,11 @@ fn thousands(n: i64) -> String {
         }
         out.push(c);
     }
-    if n < 0 { format!("-{out}") } else { out }
+    if n < 0 {
+        format!("-{out}")
+    } else {
+        out
+    }
 }
 
 fn plural(n: i64, one: &str, many: &str) -> String {
@@ -89,9 +93,10 @@ fn assess(report: &Value, target: &str, now: i64) -> (Vec<Line>, Vec<Problem>) {
     let collector = report.get("collector");
     let any_installed = report.get("installed").and_then(Value::as_bool).unwrap_or(false);
     // Hooks of ours somewhere, even incomplete: they run the collector copy.
-    let any_hooks = report.get("agents").and_then(Value::as_object).is_some_and(|a| {
-        a.iter().any(|(_, s)| s.get("registered").and_then(Value::as_array).is_some_and(|r| !r.is_empty()))
-    });
+    let any_hooks = report
+        .get("agents")
+        .and_then(Value::as_object)
+        .is_some_and(|a| a.iter().any(|(_, s)| s.get("registered").and_then(Value::as_array).is_some_and(|r| !r.is_empty())));
 
     // Agents.
     if let Some(agents) = report.get("agents").and_then(Value::as_object) {
@@ -110,7 +115,8 @@ fn assess(report: &Value, target: &str, now: i64) -> (Vec<Line>, Vec<Problem>) {
                     Some(t) => format!("Recording · last event {}", ago(t, now)),
                     None => {
                         notes.push(if id == "codex" {
-                            "No event received yet. Codex runs hooks only once trusted: open /hooks in Codex, then start a new session.".to_string()
+                            "No event received yet. Codex runs hooks only once trusted: open /hooks in Codex, then start a new session."
+                                .to_string()
                         } else {
                             "No event received yet. Start a new Claude Code session and ask it to run pwd.".to_string()
                         });
@@ -122,7 +128,10 @@ fn assess(report: &Value, target: &str, now: i64) -> (Vec<Line>, Vec<Problem>) {
                 lines.push(Line { mark, name, text, notes });
             } else if registered > 0 {
                 let (line, what) = if registered < expected {
-                    (format!("Only {registered} of {expected} hooks installed"), format!("{name}: only {registered} of {expected} hooks are installed."))
+                    (
+                        format!("Only {registered} of {expected} hooks installed"),
+                        format!("{name}: only {registered} of {expected} hooks are installed."),
+                    )
                 } else {
                     ("Hooks installed, collector missing".to_string(), format!("{name}: the hooks call a collector that is missing."))
                 };
@@ -183,7 +192,12 @@ fn assess(report: &Value, target: &str, now: i64) -> (Vec<Line>, Vec<Problem>) {
             lines.push(Line {
                 mark: Mark::Ok,
                 name: "Journal".into(),
-                text: format!("{} in {} · last one {}", plural(events, "event", "events"), plural(int(j.get("sessions")), "session", "sessions"), ago(last, now)),
+                text: format!(
+                    "{} in {} · last one {}",
+                    plural(events, "event", "events"),
+                    plural(int(j.get("sessions")), "session", "sessions"),
+                    ago(last, now)
+                ),
                 notes: vec![path],
             });
         }
@@ -195,13 +209,24 @@ fn assess(report: &Value, target: &str, now: i64) -> (Vec<Line>, Vec<Problem>) {
         let path = tilde(text(w.get("path")));
         let errors = w.get("errors").and_then(Value::as_array).cloned().unwrap_or_default();
         if !errors.is_empty() {
-            let mut notes: Vec<String> = errors.iter().map(|e| format!("Line {} skipped: {}", int(e.get("line")), text(e.get("message")))).collect();
+            let mut notes: Vec<String> =
+                errors.iter().map(|e| format!("Line {} skipped: {}", int(e.get("line")), text(e.get("message")))).collect();
             notes.push(path);
-            lines.push(Line { mark: Mark::Warning, name: "Your rules".into(), text: format!("{}, {}", plural(count, "rule", "rules"), plural(errors.len() as i64, "line skipped", "lines skipped")), notes });
+            lines.push(Line {
+                mark: Mark::Warning,
+                name: "Your rules".into(),
+                text: format!("{}, {}", plural(count, "rule", "rules"), plural(errors.len() as i64, "line skipped", "lines skipped")),
+                notes,
+            });
         } else if count > 0 {
             lines.push(Line { mark: Mark::Ok, name: "Your rules".into(), text: plural(count, "rule", "rules"), notes: vec![path] });
         } else {
-            lines.push(Line { mark: Mark::Off, name: "Your rules".into(), text: "None yet".into(), notes: vec![format!("Actions to watch for go in {path}")] });
+            lines.push(Line {
+                mark: Mark::Off,
+                name: "Your rules".into(),
+                text: "None yet".into(),
+                notes: vec![format!("Actions to watch for go in {path}")],
+            });
         }
     }
 
@@ -213,7 +238,12 @@ fn assess(report: &Value, target: &str, now: i64) -> (Vec<Line>, Vec<Problem>) {
         if !last.is_empty() {
             text_line.push_str(&format!(" · last one {}", ago(last, now)));
         }
-        lines.push(Line { mark: Mark::Warning, name: "Errors".into(), text: text_line, notes: vec![format!("Log (no event content kept): {}", tilde(text(errors.get("path"))))] });
+        lines.push(Line {
+            mark: Mark::Warning,
+            name: "Errors".into(),
+            text: text_line,
+            notes: vec![format!("Log (no event content kept): {}", tilde(text(errors.get("path"))))],
+        });
     }
     (lines, problems)
 }

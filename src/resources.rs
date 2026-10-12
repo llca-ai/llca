@@ -191,8 +191,12 @@ pub fn programs_in(command: &str) -> Vec<String> {
             continue;
         }
         let w = w.trim_start_matches("$(").to_string();
-        let is_assignment = w.split_once('=').is_some_and(|(k, _)| !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'));
-        if w.is_empty() || is_assignment || ["sudo", "env", "command", "exec", "time", "nohup", "npx", "bunx", "xargs"].contains(&w.as_str()) {
+        let is_assignment =
+            w.split_once('=').is_some_and(|(k, _)| !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'));
+        if w.is_empty()
+            || is_assignment
+            || ["sudo", "env", "command", "exec", "time", "nohup", "npx", "bunx", "xargs"].contains(&w.as_str())
+        {
             continue;
         }
         let program = w.rsplit('/').next().unwrap_or(&w).to_string();
@@ -300,7 +304,11 @@ pub fn reached(tool: &str, category: &str, args: &Value, cwd: Option<&str>) -> V
         let bare = ["claude_ai_", "codex_apps__"].iter().find_map(|p| server.strip_prefix(p)).filter(|b| !b.is_empty()).unwrap_or(server);
         // A rule matches the full name, or the name without claude_ai_.
         let unprefixed = lower.strip_prefix("claude_ai_").unwrap_or(&lower).to_string();
-        let name = s.mcp.iter().find(|(p, _)| [&lower, &unprefixed].iter().any(|l| **l == *p || l.starts_with(&format!("{p}__")))).map(|(_, n)| n.clone());
+        let name = s
+            .mcp
+            .iter()
+            .find(|(p, _)| [&lower, &unprefixed].iter().any(|l| **l == *p || l.starts_with(&format!("{p}__"))))
+            .map(|(_, n)| n.clone());
         add(found("service", name.unwrap_or_else(|| title_case(bare)), "Connected app (MCP)", Some(format!("mcp__{server}"))));
     } else if category == "shell" {
         let text = command_text(args.get("command")).to_string() + &command_text(args.get("cmd"));
@@ -389,7 +397,11 @@ fn example_of(tool: &str, category: &str, args: &Value) -> String {
         tool.to_string()
     };
     let line = text.lines().next().unwrap_or_default().trim().to_string();
-    if line.chars().count() > 140 { line.chars().take(139).collect::<String>() + "…" } else { line }
+    if line.chars().count() > 140 {
+        line.chars().take(139).collect::<String>() + "…"
+    } else {
+        line
+    }
 }
 
 /// Build the map from the rows of the selected period, oldest first.
@@ -561,7 +573,10 @@ mod tests {
         let named: Vec<&String> = s.cli.iter().chain(&s.mcp).chain(&s.domains).map(|(_, n)| n).collect();
         for (slug, name) in &s.icons {
             assert!(named.contains(&name), "icon {slug}: no rule names the service {name:?}");
-            assert!(brands.contains(&format!("\n  {}: [\"", crate::json::Value::str(name).to_compact())), "{name:?} is missing from static/brands.js: run scripts/brands.py");
+            assert!(
+                brands.contains(&format!("\n  {}: [\"", crate::json::Value::str(name).to_compact())),
+                "{name:?} is missing from static/brands.js: run scripts/brands.py"
+            );
         }
         let generated = brands.lines().filter(|l| l.starts_with("  \"")).count();
         assert_eq!(generated, s.icons.len(), "static/brands.js is out of date: run scripts/brands.py");
@@ -597,7 +612,10 @@ mod tests {
         assert_eq!(programs_in("cd infra && CLOUDSDK_CONFIG=/tmp/x gcloud projects list | head"), ["cd", "gcloud", "head"]);
         assert_eq!(programs_in("sudo /usr/local/bin/wrangler deploy; npx vercel --prod"), ["wrangler", "vercel"]);
         assert_eq!(programs_in("echo \"gcloud is great\""), ["echo"]);
-        assert_eq!(hosts_in("git clone https://[REDACTED]@github.com/a/b.git && curl -s 'https://www.example.org/x?y=1' http://localhost:3000"), ["github.com", "example.org"]);
+        assert_eq!(
+            hosts_in("git clone https://[REDACTED]@github.com/a/b.git && curl -s 'https://www.example.org/x?y=1' http://localhost:3000"),
+            ["github.com", "example.org"]
+        );
         assert_eq!(hosts_in("git clone git@gitlab.com:team/repo.git"), ["gitlab.com"]);
     }
 
@@ -606,13 +624,19 @@ mod tests {
         let cmd = crate::json::parse(r#"{"command": ["bash", "-lc", "gcloud auth list && curl https://api.github.com/repos && open -a Safari https://docs.example.dev/page"]}"#).unwrap();
         let found = reached("Bash", "shell", &cmd, Some("/Users/me/projects/infra"));
         let names: Vec<(&str, &str)> = found.iter().map(|f| (f.category, f.name.as_str())).collect();
-        assert_eq!(names, [("project", "infra"), ("app", "Safari"), ("service", "Google Cloud"), ("service", "GitHub"), ("web", "docs.example.dev")]);
+        assert_eq!(
+            names,
+            [("project", "infra"), ("app", "Safari"), ("service", "Google Cloud"), ("service", "GitHub"), ("web", "docs.example.dev")]
+        );
         let empty = Value::Object(Map::new());
         assert_eq!(reached("mcp__codex_apps__sites__save_version", "mcp", &empty, None)[0].name, "ChatGPT Sites");
         assert_eq!(reached("mcp__acme_crm__find", "mcp", &empty, None)[0].name, "Acme Crm");
         assert_eq!(reached("mcp__claude_ai_Gmail__search_threads", "mcp", &empty, None)[0].name, "Gmail");
         assert_eq!(reached("mcp__claude_ai_Acme_Notes__list", "mcp", &empty, None)[0].name, "Acme Notes");
-        assert_eq!(services_of("Bash", "shell", &cmd), [("Google Cloud".to_string(), "Command line (gcloud)".to_string()), ("GitHub".to_string(), "URL (api.github.com)".to_string())]);
+        assert_eq!(
+            services_of("Bash", "shell", &cmd),
+            [("Google Cloud".to_string(), "Command line (gcloud)".to_string()), ("GitHub".to_string(), "URL (api.github.com)".to_string())]
+        );
         assert_eq!(reached("mcp__cua_repl__js", "mcp", &empty, None)[0].name, "Computer Use");
         let fetch = crate::json::parse(r#"{"url": "https://developer.mozilla.org/en-US/docs"}"#).unwrap();
         assert_eq!(reached("WebFetch", "tool", &fetch, None)[0].name, "developer.mozilla.org");

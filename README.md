@@ -145,8 +145,11 @@ Files are private to your user (folders `0700`, files `0600`). The database is n
 
 ```sh
 cargo test                 # unit tests (JSON, redaction, utilities) + end-to-end tests
-cargo clippy --all-targets
+cargo clippy --all-targets -- -D warnings
+cargo fmt                  # formatting (rustfmt.toml: lines up to 140 characters)
 ```
+
+Every push and pull request runs the same three checks on macOS and Linux ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), plus a build with the oldest supported Rust (1.89).
 
 The end-to-end tests cover: preserving existing configuration (RTK, other settings), repeatable install, backups, uninstall, the packaged collector run through a shell (paths with spaces and apostrophes), redaction before storage, statuses for both agents, the silent Claude Code collector, concurrent writes, pagination, HTTP access control and migration of a v0.1 journal. Redaction was also checked against the Python implementation on about 3,000 generated commands.
 

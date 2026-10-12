@@ -485,7 +485,10 @@ mod tests {
         let text = r#"{"z": 1, "a": [true, null, 1.50, "é\n\"x\""], "m": {}}"#;
         let v = parse(text).unwrap();
         assert_eq!(v.to_compact(), r#"{"z": 1, "a": [true, null, 1.50, "é\n\"x\""], "m": {}}"#);
-        assert_eq!(v.to_pretty(), "{\n  \"z\": 1,\n  \"a\": [\n    true,\n    null,\n    1.50,\n    \"é\\n\\\"x\\\"\"\n  ],\n  \"m\": {}\n}");
+        assert_eq!(
+            v.to_pretty(),
+            "{\n  \"z\": 1,\n  \"a\": [\n    true,\n    null,\n    1.50,\n    \"é\\n\\\"x\\\"\"\n  ],\n  \"m\": {}\n}"
+        );
     }
 
     #[test]

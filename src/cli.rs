@@ -3,13 +3,13 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use crate::demo;
 use crate::install;
 use crate::json::{self, Value};
 use crate::obj;
 use crate::server;
 use crate::store::{self, Filter};
 use crate::util;
-use crate::demo;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -70,9 +70,10 @@ struct Args {
 fn parse_args(raw: Vec<String>) -> Result<Option<Args>, UsageError> {
     let mut args = Args { limit: 100, ..Default::default() };
     let mut it = raw.into_iter().peekable();
-    let take = |name: &str, inline: Option<String>, it: &mut std::iter::Peekable<std::vec::IntoIter<String>>| -> Result<String, UsageError> {
-        inline.or_else(|| it.next()).ok_or_else(|| UsageError(format!("argument {name}: expected one argument")))
-    };
+    let take =
+        |name: &str, inline: Option<String>, it: &mut std::iter::Peekable<std::vec::IntoIter<String>>| -> Result<String, UsageError> {
+            inline.or_else(|| it.next()).ok_or_else(|| UsageError(format!("argument {name}: expected one argument")))
+        };
     while let Some(arg) = it.next() {
         let (flag, inline) = match arg.split_once('=') {
             Some((f, v)) if f.starts_with("--") => (f.to_string(), Some(v.to_string())),
@@ -96,8 +97,12 @@ fn parse_args(raw: Vec<String>) -> Result<Option<Args>, UsageError> {
                 }
                 args.agent = Some(value);
             }
-            "--codex-dir" if allowed(&["init", "uninstall", "doctor"]) => args.codex_dir = Some(PathBuf::from(take(&flag, inline, &mut it)?)),
-            "--claude-dir" if allowed(&["init", "uninstall", "doctor"]) => args.claude_dir = Some(PathBuf::from(take(&flag, inline, &mut it)?)),
+            "--codex-dir" if allowed(&["init", "uninstall", "doctor"]) => {
+                args.codex_dir = Some(PathBuf::from(take(&flag, inline, &mut it)?))
+            }
+            "--claude-dir" if allowed(&["init", "uninstall", "doctor"]) => {
+                args.claude_dir = Some(PathBuf::from(take(&flag, inline, &mut it)?))
+            }
             "--global" if allowed(&["init", "uninstall", "doctor"]) => args.global = true,
             "--project" if allowed(&["init", "uninstall", "doctor"]) => args.project = Some(PathBuf::from(take(&flag, inline, &mut it)?)),
             "--json" if allowed(&["logs", "doctor"]) => args.json = true,
@@ -185,7 +190,9 @@ fn keep_codex_hooks_local(project: &Path) -> String {
         text.push('\n');
     }
     match std::fs::create_dir_all(git.join("info")).and_then(|_| std::fs::write(&exclude, text)) {
-        Ok(()) => "Git: added .codex/hooks.json to .git/info/exclude, so it stays on this computer (the repository does not change).".into(),
+        Ok(()) => {
+            "Git: added .codex/hooks.json to .git/info/exclude, so it stays on this computer (the repository does not change).".into()
+        }
         Err(_) => "Note: .codex/hooks.json now names a path on this computer. Do not commit it with the project.".into(),
     }
 }
@@ -321,7 +328,8 @@ fn run(args: Args) -> Result<i32, String> {
             let agents = agents_for(args.agent.as_deref(), "codex");
             let mut results = Vec::new();
             for agent in &agents {
-                results.push(install::configure(&target_for(agent, &args), &data_dir, cmd == "uninstall", agent).map_err(|e| e.to_string())?);
+                results
+                    .push(install::configure(&target_for(agent, &args), &data_dir, cmd == "uninstall", agent).map_err(|e| e.to_string())?);
             }
             let report = if results.len() == 1 { results.remove(0) } else { Value::Array(results) };
             println!("{}", report.to_pretty());
@@ -364,7 +372,16 @@ fn run(args: Args) -> Result<i32, String> {
                         ("path", data_dir.join(crate::watch::FILE_NAME).to_string_lossy().into_owned()),
                         ("exists", exists),
                         ("rules", Value::int(rules.rules.len() as i64)),
-                        ("errors", Value::Array(rules.errors.into_iter().map(|(line, message)| obj![("line", Value::int(line as i64)), ("message", message)]).collect())),
+                        (
+                            "errors",
+                            Value::Array(
+                                rules
+                                    .errors
+                                    .into_iter()
+                                    .map(|(line, message)| obj![("line", Value::int(line as i64)), ("message", message)])
+                                    .collect()
+                            )
+                        ),
                     ]
                 }),
                 ("coverage", Value::Array(COVERAGE.iter().map(|c| Value::str(*c)).collect())),

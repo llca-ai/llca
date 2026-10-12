@@ -25,11 +25,19 @@ pub fn agent_for(adapter: &str) -> Option<&'static str> {
 }
 
 fn default_file(agent: &str) -> &'static str {
-    if agent == "codex" { "hooks.json" } else { "settings.json" }
+    if agent == "codex" {
+        "hooks.json"
+    } else {
+        "settings.json"
+    }
 }
 
 fn timeout(agent: &str) -> i64 {
-    if agent == "codex" { 3 } else { 5 }
+    if agent == "codex" {
+        3
+    } else {
+        5
+    }
 }
 
 fn note(agent: &str) -> &'static str {
@@ -99,7 +107,12 @@ pub fn is_ours(handler: &Value) -> bool {
     let name = |s: &str| Path::new(s).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let adapter_ok = |s: &str| agent_for(s).is_some();
     // <bin>/llca --data-dir DIR hook --adapter X
-    argv.len() == 6 && name(&argv[0]) == "llca" && argv[1] == "--data-dir" && argv[3] == "hook" && argv[4] == "--adapter" && adapter_ok(&argv[5])
+    argv.len() == 6
+        && name(&argv[0]) == "llca"
+        && argv[1] == "--data-dir"
+        && argv[3] == "hook"
+        && argv[4] == "--adapter"
+        && adapter_ok(&argv[5])
 }
 
 fn remove_ours(config: &mut Map) -> Result<(), Error> {
@@ -174,7 +187,8 @@ fn ask_version(binary: &Path) -> Option<String> {
     let mut out = String::new();
     std::io::Read::read_to_string(&mut child.stdout.take()?, &mut out).ok()?;
     let version = out.trim().to_string();
-    (!version.is_empty() && version.len() < 40 && version.chars().all(|c| c.is_ascii_alphanumeric() || ".-+".contains(c))).then_some(version)
+    (!version.is_empty() && version.len() < 40 && version.chars().all(|c| c.is_ascii_alphanumeric() || ".-+".contains(c)))
+        .then_some(version)
 }
 
 /// Version of the collector copy the hooks run. The answer is kept until the
@@ -351,9 +365,11 @@ pub fn inspect(data_dir: &Path, target: &Path, agent: &str) -> Result<Value, Err
         .iter()
         .filter(|event| {
             hooks.and_then(|h| h.get(event)).and_then(Value::as_array).is_some_and(|groups| {
-                groups.iter().filter_map(|g| g.get("hooks").and_then(Value::as_array)).flatten().any(|h| {
-                    is_ours(h) && h.get("command").and_then(Value::as_str) == Some(expected.as_str())
-                })
+                groups
+                    .iter()
+                    .filter_map(|g| g.get("hooks").and_then(Value::as_array))
+                    .flatten()
+                    .any(|h| is_ours(h) && h.get("command").and_then(Value::as_str) == Some(expected.as_str()))
             })
         })
         .map(|e| Value::str(*e))

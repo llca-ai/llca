@@ -68,10 +68,13 @@ fn entropy(s: &[char]) -> f64 {
         *counts.entry(c).or_default() += 1;
     }
     let n = s.len() as f64;
-    counts.values().map(|&k| {
-        let p = k as f64 / n;
-        -p * p.log2()
-    }).sum()
+    counts
+        .values()
+        .map(|&k| {
+            let p = k as f64 / n;
+            -p * p.log2()
+        })
+        .sum()
 }
 
 /// Random-looking: long, letters and digits interleaved, high entropy.
@@ -113,7 +116,8 @@ fn is_identifier_name(name: &str) -> bool {
         word.push(c.to_ascii_lowercase());
     }
     words.push(word);
-    const IDS: [&str; 14] = ["id", "ids", "uuid", "guid", "sha", "hash", "etag", "digest", "checksum", "commit", "oid", "rev", "revision", "path"];
+    const IDS: [&str; 14] =
+        ["id", "ids", "uuid", "guid", "sha", "hash", "etag", "digest", "checksum", "commit", "oid", "rev", "revision", "path"];
     words.last().is_some_and(|w| IDS.contains(&w.as_str()))
 }
 
@@ -371,7 +375,11 @@ mod tests {
 
     #[test]
     fn what_looks_random() {
-        for secret in ["3f7a1c9e5b2d8f4a6c0e1b7d9a3f5c8e2b4d6a1f", "Qm7xK2pV9tLw4Rz8Nc1Bf6Hy3Dj5Gs0Ak2Ve7Xu9Pq", "tR8vLq2ZpX0mWc5YbN7kJ3hG9fD1sA6eQ4uI"] {
+        for secret in [
+            "3f7a1c9e5b2d8f4a6c0e1b7d9a3f5c8e2b4d6a1f",
+            "Qm7xK2pV9tLw4Rz8Nc1Bf6Hy3Dj5Gs0Ak2Ve7Xu9Pq",
+            "tR8vLq2ZpX0mWc5YbN7kJ3hG9fD1sA6eQ4uI",
+        ] {
             assert!(looks_random(&chars(secret)), "{secret}");
         }
         for ordinary in [

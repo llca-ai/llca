@@ -15,10 +15,7 @@ use crate::util;
 
 /// A bare application name: no path, no hidden file, reasonable length.
 pub fn valid_name(name: &str) -> bool {
-    !name.is_empty()
-        && name.chars().count() <= 120
-        && !name.starts_with('.')
-        && !name.contains(['/', '\\', '\0', '\n', '\r'])
+    !name.is_empty() && name.chars().count() <= 120 && !name.starts_with('.') && !name.contains(['/', '\\', '\0', '\n', '\r'])
 }
 
 fn bundle(name: &str) -> Option<PathBuf> {
@@ -53,7 +50,9 @@ fn hash(name: &str) -> String {
 fn convert(app: &Path, out: &Path, work: &Path) -> bool {
     // 1. The .icns named in Info.plist (CFBundleIconFile), resized by sips.
     let plist = app.join("Contents/Info.plist");
-    if let Ok(o) = Command::new("plutil").args(["-extract", "CFBundleIconFile", "raw", "-o", "-"]).arg(&plist).stderr(Stdio::null()).output() {
+    if let Ok(o) =
+        Command::new("plutil").args(["-extract", "CFBundleIconFile", "raw", "-o", "-"]).arg(&plist).stderr(Stdio::null()).output()
+    {
         let file = String::from_utf8_lossy(&o.stdout).trim().to_string();
         if o.status.success() && !file.is_empty() && !file.contains('/') {
             let file = if file.ends_with(".icns") { file } else { format!("{file}.icns") };
@@ -93,9 +92,8 @@ pub fn png(data_dir: &Path, name: &str) -> Option<Vec<u8>> {
         return Some(bytes);
     }
     // A miss is retried after a day, in case the app is installed later.
-    let recent_miss = fs::metadata(&miss)
-        .and_then(|m| m.modified())
-        .is_ok_and(|t| t.elapsed().map(|e| e.as_secs() < 86_400).unwrap_or(true));
+    let recent_miss =
+        fs::metadata(&miss).and_then(|m| m.modified()).is_ok_and(|t| t.elapsed().map(|e| e.as_secs() < 86_400).unwrap_or(true));
     if recent_miss {
         return None;
     }

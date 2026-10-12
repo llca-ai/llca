@@ -192,4 +192,3 @@ impl Drop for Statement<'_> {
         unsafe { sqlite3_finalize(self.stmt) };
     }
 }
-

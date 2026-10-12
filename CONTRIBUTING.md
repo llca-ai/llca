@@ -62,6 +62,10 @@ plain-text files; no Rust is needed.
    the line), that every case passes, and that redacting twice changes
    nothing. Then open a pull request.
 
+For a change to the Rust code, also run `cargo fmt` and
+`cargo clippy --all-targets -- -D warnings`: the CI runs both, with the
+tests, on macOS and Linux.
+
 After installing a build with your rule, `llca redact` applies it to
 the events already in your journal.
 

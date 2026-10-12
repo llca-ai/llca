@@ -249,7 +249,10 @@ fn key_marker(s: &[char], i: usize, word: &str) -> Option<usize> {
 /// True when a private key starts in `s` and does not end there: the rest of
 /// the key follows in the next strings (a key split into lines).
 fn opens_private_key(s: &[char]) -> bool {
-    (0..s.len()).rev().find_map(|i| key_marker(s, i, "BEGIN").map(|_| i)).is_some_and(|begin| !(begin..s.len()).any(|p| key_marker(s, p, "END").is_some()))
+    (0..s.len())
+        .rev()
+        .find_map(|i| key_marker(s, i, "BEGIN").map(|_| i))
+        .is_some_and(|begin| !(begin..s.len()).any(|p| key_marker(s, p, "END").is_some()))
 }
 
 fn closes_private_key(s: &[char]) -> bool {
@@ -293,7 +296,13 @@ fn headers(s: &[char]) -> Chars {
         let j = inline_ws(s, j + 1);
         let quote: &[char] = match (at(s, j), at(s, j + 1)) {
             (Some('\\'), Some('"')) => &['\\', '"'],
-            (Some(q @ ('"' | '\'')), _) => if q == '"' { &['"'] } else { &['\''] },
+            (Some(q @ ('"' | '\'')), _) => {
+                if q == '"' {
+                    &['"']
+                } else {
+                    &['\'']
+                }
+            }
             _ => &[],
         };
         let start = j + quote.len();
@@ -624,7 +633,20 @@ const SCAN_LIMIT: usize = 200_000;
 
 pub fn redact_string(value: &str) -> String {
     let mut s: Chars = value.chars().filter(|&c| c != HOLD).take(SCAN_LIMIT).collect();
-    for step in [heredoc, labels, private_keys, auth_headers, headers, known_tokens, url_credentials, url_params, user_option, sshpass, key_values, password_flags] {
+    for step in [
+        heredoc,
+        labels,
+        private_keys,
+        auth_headers,
+        headers,
+        known_tokens,
+        url_credentials,
+        url_params,
+        user_option,
+        sshpass,
+        key_values,
+        password_flags,
+    ] {
         s = step(&s);
     }
     let mut out = String::with_capacity(s.len());
@@ -785,9 +807,18 @@ mod tests {
         let mut it = s.chars().peekable();
         while let Some(c) = it.next() {
             match (c, it.peek()) {
-                ('\\', Some('n')) => { out.push('\n'); it.next(); }
-                ('\\', Some('t')) => { out.push('\t'); it.next(); }
-                ('\\', Some('\\')) => { out.push('\\'); it.next(); }
+                ('\\', Some('n')) => {
+                    out.push('\n');
+                    it.next();
+                }
+                ('\\', Some('t')) => {
+                    out.push('\t');
+                    it.next();
+                }
+                ('\\', Some('\\')) => {
+                    out.push('\\');
+                    it.next();
+                }
                 _ => out.push(c),
             }
         }
@@ -825,7 +856,8 @@ mod tests {
                 }
                 "kind" => {
                     cases += 1;
-                    let start = current.as_ref().map(|c| c.0).unwrap_or_else(|| panic!("cases.txt line {line}: kind: without in: or json:"));
+                    let start =
+                        current.as_ref().map(|c| c.0).unwrap_or_else(|| panic!("cases.txt line {line}: kind: without in: or json:"));
                     if !kinds.contains(&text) {
                         failures.push(format!("line {start}: kind {text}\n    got:  {kinds:?}"));
                     }
@@ -840,9 +872,12 @@ mod tests {
                 }
                 "out" | "hide" => {
                     cases += 1;
-                    let (start, json, got) = current.clone().unwrap_or_else(|| panic!("cases.txt line {line}: {kind}: without in: or json:"));
+                    let (start, json, got) =
+                        current.clone().unwrap_or_else(|| panic!("cases.txt line {line}: {kind}: without in: or json:"));
                     let ok = match (kind, json) {
-                        ("out", true) => crate::json::parse(&got).ok() == crate::json::parse(&text).ok() && crate::json::parse(&text).is_ok(),
+                        ("out", true) => {
+                            crate::json::parse(&got).ok() == crate::json::parse(&text).ok() && crate::json::parse(&text).is_ok()
+                        }
                         ("out", false) => got == text,
                         _ => !got.contains(&text),
                     };

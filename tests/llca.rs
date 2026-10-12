@@ -45,12 +45,7 @@ impl Drop for Temp {
 }
 
 fn payload(event: &str) -> Value {
-    obj![
-        ("session_id", "session-test"),
-        ("hook_event_name", event),
-        ("tool_name", "Bash"),
-        ("tool_input", obj![("command", "git status")]),
-    ]
+    obj![("session_id", "session-test"), ("hook_event_name", event), ("tool_name", "Bash"), ("tool_input", obj![("command", "git status")]),]
 }
 
 fn with(mut v: Value, key: &str, value: Value) -> Value {
@@ -74,7 +69,8 @@ fn hook_command(config: &Path, event: &str, index: usize) -> String {
 }
 
 fn run_shell(command: &str, input: &str) -> (i32, String, String) {
-    let mut child = Command::new("sh").arg("-c").arg(command).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+    let mut child =
+        Command::new("sh").arg("-c").arg(command).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
     child.stdin.take().unwrap().write_all(input.as_bytes()).unwrap();
     let out = child.wait_with_output().unwrap();
     (out.status.code().unwrap_or(-1), String::from_utf8_lossy(&out.stdout).into(), String::from_utf8_lossy(&out.stderr).into())
@@ -142,7 +138,10 @@ fn redaction_happens_before_storage_and_response_is_omitted() {
         event,
         "tool_input",
         obj![
-            ("command", r#"API_TOKEN="my-secret-value" curl -H "Authorization: Bearer bearer-secret-value" https://name:password@example.com"#),
+            (
+                "command",
+                r#"API_TOKEN="my-secret-value" curl -H "Authorization: Bearer bearer-secret-value" https://name:password@example.com"#
+            ),
             ("nested", obj![("password", "deep-secret"), ("content", "private-file-content")]),
         ],
     );
@@ -150,7 +149,15 @@ fn redaction_happens_before_storage_and_response_is_omitted() {
     record(&t.data(), &event, "hook", "codex", None).unwrap();
     let data = Value::Array(all(&t.data())).to_compact();
     let db = String::from_utf8_lossy(&fs::read(t.data().join("events.sqlite3")).unwrap()).into_owned();
-    for secret in ["my-secret-value", "bearer-secret-value", "deep-secret", "private-file-content", "RAW-SENSITIVE-OUTPUT", "PRIVATE-PROMPT", "name:password"] {
+    for secret in [
+        "my-secret-value",
+        "bearer-secret-value",
+        "deep-secret",
+        "private-file-content",
+        "RAW-SENSITIVE-OUTPUT",
+        "PRIVATE-PROMPT",
+        "name:password",
+    ] {
         assert!(!data.contains(secret), "{secret}");
         assert!(!db.contains(secret), "{secret} in database");
     }
@@ -172,7 +179,11 @@ fn permission_request_is_not_approval_and_unknown_result_is_not_success() {
 #[test]
 fn patch_records_paths_without_file_contents() {
     let t = Temp::new();
-    let event = with(with(payload("PreToolUse"), "tool_name", Value::str("apply_patch")), "tool_input", obj![("command", "*** Begin Patch\n*** Add File: src/demo.py\n+PRIVATE-CODE\n*** End Patch")]);
+    let event = with(
+        with(payload("PreToolUse"), "tool_name", Value::str("apply_patch")),
+        "tool_input",
+        obj![("command", "*** Begin Patch\n*** Add File: src/demo.py\n+PRIVATE-CODE\n*** End Patch")],
+    );
     record(&t.data(), &event, "hook", "codex", None).unwrap();
     let row = &all(&t.data())[0];
     assert_eq!(row.get("arguments").unwrap().get("files"), Some(&Value::Array(vec![Value::str("src/demo.py")])));
@@ -183,7 +194,10 @@ fn patch_records_paths_without_file_contents() {
 fn invalid_hook_is_passive_and_error_log_has_no_payload() {
     let t = Temp::new();
     let data = t.data();
-    let (code, out, err) = run_shell(&format!("{} --data-dir {} hook --adapter codex-v0", util::shell_quote(BIN), util::shell_quote(&data.to_string_lossy())), "BAD-SECRET-PAYLOAD");
+    let (code, out, err) = run_shell(
+        &format!("{} --data-dir {} hook --adapter codex-v0", util::shell_quote(BIN), util::shell_quote(&data.to_string_lossy())),
+        "BAD-SECRET-PAYLOAD",
+    );
     assert_eq!((code, out.trim(), err.as_str()), (0, "{}", ""));
     let log = fs::read_to_string(data.join("collector-errors.log")).unwrap();
     assert!(log.contains("event not recorded") && !log.contains("BAD-SECRET"));
@@ -254,7 +268,8 @@ fn http_access_control_and_assets() {
     let token = url.split("#token=").nth(1).unwrap().to_string();
     let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let flag = stop.clone();
-    let handle = std::thread::spawn(move || server::serve_until(listener, dashboard, move || flag.load(std::sync::atomic::Ordering::SeqCst)));
+    let handle =
+        std::thread::spawn(move || server::serve_until(listener, dashboard, move || flag.load(std::sync::atomic::Ordering::SeqCst)));
     assert_eq!(http(port, "/api/events", &[]).0, 401);
     let auth = ("Authorization", format!("Bearer {token}"));
     let (code, head, body) = http(port, "/api/events", std::slice::from_ref(&auth));
@@ -281,7 +296,9 @@ fn http_access_control_and_assets() {
     assert_eq!(http(port, "/api/events", &[auth, ("Origin", "https://evil.example".into())]).0, 403);
     let (code, head, body) = http(port, "/", &[]);
     assert_eq!(code, 200);
-    assert!(body.contains("llca") && body.contains("data-kind=\"shell\"") && body.contains("data-kind=\"app\"") && !body.contains(" style="));
+    assert!(
+        body.contains("llca") && body.contains("data-kind=\"shell\"") && body.contains("data-kind=\"app\"") && !body.contains(" style=")
+    );
     assert!(head.contains("frame-ancestors 'none'") && head.contains("img-src 'self' blob:"));
     // App icons: bare names only, token required, unknown apps are a 404.
     assert_eq!(http(port, "/api/app-icon?name=Finder", &[]).0, 401);
@@ -305,7 +322,14 @@ fn http_access_control_and_assets() {
     let count = |v: &Value, k: &str| v.get(k).and_then(Value::as_integer).unwrap();
     let first = overview();
     assert_eq!(overview(), first);
-    record(&t.data(), &with(payload("PreToolUse"), "tool_input", obj![("command", "export API_TOKEN=FAKEfakeFAKEfake1234")]), "hook", "codex", None).unwrap();
+    record(
+        &t.data(),
+        &with(payload("PreToolUse"), "tool_input", obj![("command", "export API_TOKEN=FAKEfakeFAKEfake1234")]),
+        "hook",
+        "codex",
+        None,
+    )
+    .unwrap();
     let second = overview();
     assert_eq!((count(&second, "events"), count(&second, "alert_secrets")), (count(&first, "events") + 1, 1));
     assert_eq!(http_method(port, "POST", "/api/secret-alert/dismiss?through=999999", std::slice::from_ref(&auth)).0, 200);
@@ -338,7 +362,14 @@ fn http_access_control_and_assets() {
 fn secret_alert_dismiss_new_secret_and_undo() {
     let t = Temp::new();
     let call = |id: &str, event: &str, agent: &str, command: &str| {
-        let p = obj![("session_id", "s1"), ("cwd", "/p/one"), ("tool_use_id", id), ("hook_event_name", event), ("tool_name", "Bash"), ("tool_input", obj![("command", command)])];
+        let p = obj![
+            ("session_id", "s1"),
+            ("cwd", "/p/one"),
+            ("tool_use_id", id),
+            ("hook_event_name", event),
+            ("tool_name", "Bash"),
+            ("tool_input", obj![("command", command)])
+        ];
         record(&t.data(), &p, "hook", agent, None).unwrap()
     };
     call("a", "PreToolUse", "codex", "export TOKEN=abc && ls");
@@ -376,7 +407,8 @@ fn secret_alert_dismiss_new_secret_and_undo() {
 fn events_name_the_services_they_reached_and_filter_by_service() {
     let t = Temp::new();
     let call = |id: &str, tool: &str, input: Value| {
-        let p = obj![("session_id", "s1"), ("tool_use_id", id), ("hook_event_name", "PreToolUse"), ("tool_name", tool), ("tool_input", input)];
+        let p =
+            obj![("session_id", "s1"), ("tool_use_id", id), ("hook_event_name", "PreToolUse"), ("tool_name", tool), ("tool_input", input)];
         record(&t.data(), &p, "hook", "codex", None).unwrap();
     };
     call("a", "Bash", obj![("command", "gcloud projects list")]);
@@ -396,7 +428,8 @@ fn events_name_the_services_they_reached_and_filter_by_service() {
     let ids: Vec<_> = google.iter().map(|r| r.get("tool_use_id").unwrap().as_str().unwrap()).collect();
     assert_eq!(ids, ["d", "a"]);
     assert!(google.iter().all(|r| services(r) == ["Google Cloud"]));
-    let via: Vec<_> = google.iter().map(|r| r.get("services").unwrap().as_array().unwrap()[0].get("via").unwrap().as_str().unwrap()).collect();
+    let via: Vec<_> =
+        google.iter().map(|r| r.get("services").unwrap().as_array().unwrap()[0].get("via").unwrap().as_str().unwrap()).collect();
     assert_eq!(via, ["Connected app (MCP)", "Command line (gcloud)"]);
     assert_eq!(query(&t.data(), &Filter { service: "GitHub", limit: 200, ..Default::default() }).unwrap().events.len(), 1);
     assert!(query(&t.data(), &Filter { service: "Stripe", limit: 200, ..Default::default() }).unwrap().events.is_empty());
@@ -411,7 +444,13 @@ fn events_name_the_services_they_reached_and_filter_by_service() {
 fn the_map_shows_the_most_recent_events_of_the_period() {
     let t = Temp::new();
     let call = |id: &str, command: &str| {
-        let p = obj![("session_id", "s1"), ("tool_use_id", id), ("hook_event_name", "PreToolUse"), ("tool_name", "Bash"), ("tool_input", obj![("command", command)])];
+        let p = obj![
+            ("session_id", "s1"),
+            ("tool_use_id", id),
+            ("hook_event_name", "PreToolUse"),
+            ("tool_name", "Bash"),
+            ("tool_input", obj![("command", command)])
+        ];
         record(&t.data(), &p, "hook", "codex", None).unwrap();
     };
     for i in 0..5 {
@@ -422,7 +461,16 @@ fn the_map_shows_the_most_recent_events_of_the_period() {
     }
     let names = |limit: i64| {
         let ov = store::overview_with_map_limit(&t.data(), &Filter::default(), 0, true, limit).unwrap();
-        let names: Vec<String> = ov.get("map").unwrap().get("resources").unwrap().as_array().unwrap().iter().map(|r| r.get("name").unwrap().as_str().unwrap().to_string()).collect();
+        let names: Vec<String> = ov
+            .get("map")
+            .unwrap()
+            .get("resources")
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r.get("name").unwrap().as_str().unwrap().to_string())
+            .collect();
         (names, ov.get("map_truncated").cloned(), ov.get("totals").unwrap().get("actions").and_then(Value::as_integer))
     };
     // Limited to 4 events: the 4 most recent (GitHub), not the oldest; the
@@ -461,7 +509,12 @@ fn kind_and_result_filters_search_the_whole_history_by_call() {
     event("push", "PreToolUse", "Bash", obj![("command", "git push origin main")], None);
     filler(0, 700);
     let ids = |f: Filter| -> Vec<String> {
-        let mut v: Vec<String> = query(&t.data(), &Filter { limit: 200, ..f }).unwrap().events.iter().map(|r| r.get("tool_use_id").unwrap().as_str().unwrap().to_string()).collect();
+        let mut v: Vec<String> = query(&t.data(), &Filter { limit: 200, ..f })
+            .unwrap()
+            .events
+            .iter()
+            .map(|r| r.get("tool_use_id").unwrap().as_str().unwrap().to_string())
+            .collect();
         v.dedup();
         v
     };
@@ -469,7 +522,8 @@ fn kind_and_result_filters_search_the_whole_history_by_call() {
     assert!(ids(Filter::default()).iter().all(|id| id.starts_with('x')));
     // A failed call: both of its events, the request (what ran) and the result.
     let page = query(&t.data(), &Filter { result: "problem", limit: 200, ..Default::default() }).unwrap();
-    let events: Vec<_> = page.events.iter().map(|r| (r.get("tool_use_id").unwrap().as_str().unwrap(), r.get("event").unwrap().as_str().unwrap())).collect();
+    let events: Vec<_> =
+        page.events.iter().map(|r| (r.get("tool_use_id").unwrap().as_str().unwrap(), r.get("event").unwrap().as_str().unwrap())).collect();
     assert_eq!(events, [("fail", "PostToolUse"), ("fail", "PreToolUse")]);
     assert_eq!(page.next, None, "the whole history was searched");
     assert!(page.scanned > 1400);
@@ -492,8 +546,35 @@ fn kind_and_result_filters_search_the_whole_history_by_call() {
     let t2 = Temp::new();
     for i in 0..150 {
         let id = format!("c{i}");
-        record(&t2.data(), &obj![("session_id", "s1"), ("tool_use_id", id.as_str()), ("hook_event_name", "PreToolUse"), ("tool_name", "Bash"), ("tool_input", obj![("command", "false")])], "hook", "codex", None).unwrap();
-        record(&t2.data(), &obj![("session_id", "s1"), ("tool_use_id", id.as_str()), ("hook_event_name", "PostToolUse"), ("tool_name", "Bash"), ("tool_input", obj![("command", "false")]), ("tool_response", obj![("exit_code", Value::int(1))])], "hook", "codex", None).unwrap();
+        record(
+            &t2.data(),
+            &obj![
+                ("session_id", "s1"),
+                ("tool_use_id", id.as_str()),
+                ("hook_event_name", "PreToolUse"),
+                ("tool_name", "Bash"),
+                ("tool_input", obj![("command", "false")])
+            ],
+            "hook",
+            "codex",
+            None,
+        )
+        .unwrap();
+        record(
+            &t2.data(),
+            &obj![
+                ("session_id", "s1"),
+                ("tool_use_id", id.as_str()),
+                ("hook_event_name", "PostToolUse"),
+                ("tool_name", "Bash"),
+                ("tool_input", obj![("command", "false")]),
+                ("tool_response", obj![("exit_code", Value::int(1))])
+            ],
+            "hook",
+            "codex",
+            None,
+        )
+        .unwrap();
     }
     let first = query(&t2.data(), &Filter { result: "problem", limit: 101, ..Default::default() }).unwrap();
     let next = first.next.expect("more to read");
@@ -527,7 +608,9 @@ fn watch_rules_mark_actions_without_changing_the_journal() {
     fs::write(t.data().join("watch.rules"), "file .env # Touched a .env file\nalert command kubectl * --context prod # Touched production\ncomand oops # typo\nfile ~/.ssh/ # Touched SSH keys\n").unwrap();
     assert!(!llca::watch::create_if_missing(&t.data()).unwrap());
 
-    let labels = |row: &Value| -> Vec<String> { row.get("watch").unwrap().as_array().unwrap().iter().map(|w| w.get("label").unwrap().as_str().unwrap().to_string()).collect() };
+    let labels = |row: &Value| -> Vec<String> {
+        row.get("watch").unwrap().as_array().unwrap().iter().map(|w| w.get("label").unwrap().as_str().unwrap().to_string()).collect()
+    };
     let rows = all(&t.data());
     let by_id = |id: &str| rows.iter().find(|r| r.get("tool_use_id").and_then(Value::as_str) == Some(id)).unwrap();
     assert_eq!(labels(by_id("a")), ["Touched a .env file"]);
@@ -536,17 +619,26 @@ fn watch_rules_mark_actions_without_changing_the_journal() {
     let w = &by_id("b").get("watch").unwrap().as_array().unwrap()[0];
     assert_eq!((w.get("alert"), w.get("line").unwrap().as_integer()), (Some(&Value::Bool(true)), Some(2)));
     // The journal itself is unchanged.
-    let strip = |rows: Vec<Value>| rows.into_iter().map(|mut r| { r.as_object_mut().unwrap().remove("watch"); r }).collect::<Vec<_>>();
+    let strip = |rows: Vec<Value>| {
+        rows.into_iter()
+            .map(|mut r| {
+                r.as_object_mut().unwrap().remove("watch");
+                r
+            })
+            .collect::<Vec<_>>()
+    };
     assert_eq!(strip(all(&t.data())), strip(before));
 
     // Filter by rule, as the activity list does.
     let env = query(&t.data(), &Filter { rule: "Touched a .env file", limit: 200, ..Default::default() }).unwrap().events;
     assert_eq!(env.len(), 2); // its PreToolUse and PostToolUse
-    // Overview: one count per call, every label listed, skipped lines named.
+                              // Overview: one count per call, every label listed, skipped lines named.
     let ov = store::overview(&t.data(), &Filter::default(), 0, false).unwrap();
     let watch = ov.get("watch").unwrap();
     let rules = watch.get("rules").unwrap().as_array().unwrap();
-    let count = |label: &str| rules.iter().find(|r| r.get("label").unwrap().as_str() == Some(label)).unwrap().get("actions").unwrap().as_integer().unwrap();
+    let count = |label: &str| {
+        rules.iter().find(|r| r.get("label").unwrap().as_str() == Some(label)).unwrap().get("actions").unwrap().as_integer().unwrap()
+    };
     assert_eq!((count("Touched a .env file"), count("Touched production"), count("Touched SSH keys")), (1, 1, 0));
     let errors = watch.get("errors").unwrap().as_array().unwrap();
     assert_eq!(errors[0].get("line").unwrap().as_integer(), Some(3));
@@ -583,7 +675,10 @@ fn outdated_collector_is_reported() {
     let out = doctor(&[]);
     assert_eq!(out.status.code(), Some(1));
     let text = String::from_utf8_lossy(&out.stdout);
-    assert!(text.contains("1 problem to fix") && text.contains("older than this one") && text.contains("Fix: llca init --global --agent all"), "{text}");
+    assert!(
+        text.contains("1 problem to fix") && text.contains("older than this one") && text.contains("Fix: llca init --global --agent all"),
+        "{text}"
+    );
     // A copy that cannot say its version counts as outdated.
     fake("#!/bin/sh\nexit 1\n# a different length, so the cached answer is not reused\n");
     assert_eq!((state("version"), state("outdated")), (Value::Null, Value::Bool(true)));
@@ -616,7 +711,10 @@ fn claude_settings_are_merged_preserved_and_restored() {
     let orig = json::parse(original).unwrap();
     assert_eq!(config.get("model"), orig.get("model"));
     assert_eq!(config.get("permissions"), orig.get("permissions"));
-    assert_eq!(config.get("hooks").unwrap().get("PreToolUse").unwrap().as_array().unwrap()[0], orig.get("hooks").unwrap().get("PreToolUse").unwrap().as_array().unwrap()[0]);
+    assert_eq!(
+        config.get("hooks").unwrap().get("PreToolUse").unwrap().as_array().unwrap()[0],
+        orig.get("hooks").unwrap().get("PreToolUse").unwrap().as_array().unwrap()[0]
+    );
     assert!(config.get("hooks").unwrap().get("PostToolUseFailure").is_some());
     assert!(config.get("hooks").unwrap().get("Interrupt").is_none());
     assert_eq!(configure(&t.claude(), &t.data(), false, "claude-code").unwrap().get("changed"), Some(&Value::Bool(false)));
@@ -651,10 +749,44 @@ fn claude_collector_is_silent_and_tags_events() {
 #[test]
 fn claude_events_statuses_and_file_contents() {
     let t = Temp::new();
-    let base = |event: &str, tool: &str, input: Value| obj![("session_id", "c1"), ("tool_use_id", "toolu_1"), ("cwd", "/tmp"), ("hook_event_name", event), ("tool_name", tool), ("tool_input", input)];
-    record(&t.data(), &base("PreToolUse", "Edit", obj![("file_path", "/tmp/a.py"), ("old_string", "PRIVATE-OLD"), ("new_string", "PRIVATE-NEW")]), "hook", "claude-code", None).unwrap();
-    record(&t.data(), &base("PreToolUse", "MultiEdit", obj![("file_path", "/tmp/b.py"), ("edits", Value::Array(vec![obj![("old_string", "PRIVATE-OLD"), ("new_string", "PRIVATE-NEW")]]))]), "hook", "claude-code", None).unwrap();
-    let failure = with(with(base("PostToolUseFailure", "Bash", obj![("command", "npm test")]), "error", Value::str("PRIVATE-ERROR-TEXT")), "is_interrupt", Value::Bool(false));
+    let base = |event: &str, tool: &str, input: Value| {
+        obj![
+            ("session_id", "c1"),
+            ("tool_use_id", "toolu_1"),
+            ("cwd", "/tmp"),
+            ("hook_event_name", event),
+            ("tool_name", tool),
+            ("tool_input", input)
+        ]
+    };
+    record(
+        &t.data(),
+        &base("PreToolUse", "Edit", obj![("file_path", "/tmp/a.py"), ("old_string", "PRIVATE-OLD"), ("new_string", "PRIVATE-NEW")]),
+        "hook",
+        "claude-code",
+        None,
+    )
+    .unwrap();
+    record(
+        &t.data(),
+        &base(
+            "PreToolUse",
+            "MultiEdit",
+            obj![
+                ("file_path", "/tmp/b.py"),
+                ("edits", Value::Array(vec![obj![("old_string", "PRIVATE-OLD"), ("new_string", "PRIVATE-NEW")]]))
+            ],
+        ),
+        "hook",
+        "claude-code",
+        None,
+    )
+    .unwrap();
+    let failure = with(
+        with(base("PostToolUseFailure", "Bash", obj![("command", "npm test")]), "error", Value::str("PRIVATE-ERROR-TEXT")),
+        "is_interrupt",
+        Value::Bool(false),
+    );
     record(&t.data(), &failure, "hook", "claude-code", None).unwrap();
     record(&t.data(), &base("PermissionDenied", "Bash", obj![("command", "rm -rf build")]), "hook", "claude-code", None).unwrap();
     record(&t.data(), &base("PostToolUse", "Bash", obj![("command", "pwd")]), "hook", "claude-code", None).unwrap();
@@ -754,7 +886,14 @@ fn time_range_project_and_overview() {
     let t = Temp::new();
     let at = |day: &str| format!("2026-10-{day}T10:00:00.000+00:00");
     let call = |sid: &str, cwd: &str, tool: &str, event: &str| {
-        obj![("session_id", sid), ("cwd", cwd), ("tool_use_id", "x"), ("hook_event_name", event), ("tool_name", tool), ("tool_input", obj![("command", "export TOKEN=abc && sudo ls")])]
+        obj![
+            ("session_id", sid),
+            ("cwd", cwd),
+            ("tool_use_id", "x"),
+            ("hook_event_name", event),
+            ("tool_name", tool),
+            ("tool_input", obj![("command", "export TOKEN=abc && sudo ls")])
+        ]
     };
     record(&t.data(), &call("s1", "/p/one", "Bash", "PreToolUse"), "hook", "codex", Some(&at("01"))).unwrap();
     record(&t.data(), &call("s1", "/p/one", "Bash", "PostToolUseFailure"), "hook", "claude-code", Some(&at("01"))).unwrap();
@@ -775,7 +914,8 @@ fn time_range_project_and_overview() {
     let codex = kinds.iter().find(|k| k.get("agent").unwrap().as_str() == Some("codex")).unwrap();
     assert_eq!(codex.get("kind").unwrap().as_str(), Some("Value of \"TOKEN\""));
     assert_eq!(codex.get("calls").unwrap().as_integer(), Some(2));
-    let days: Vec<_> = ov.get("by_day").unwrap().as_array().unwrap().iter().map(|d| d.get("day").unwrap().as_str().unwrap().to_string()).collect();
+    let days: Vec<_> =
+        ov.get("by_day").unwrap().as_array().unwrap().iter().map(|d| d.get("day").unwrap().as_str().unwrap().to_string()).collect();
     assert_eq!(days.first().map(String::as_str), Some("2026-10-01"));
     assert!(days.contains(&"2026-10-09".to_string()));
     let projects = ov.get("projects").unwrap().as_array().unwrap();
@@ -784,7 +924,7 @@ fn time_range_project_and_overview() {
     let scoped = store::overview(&t.data(), &Filter { project: "/p/two", agent: "codex", ..Default::default() }, 0, false).unwrap();
     assert_eq!(scoped.get("totals").unwrap().get("actions").unwrap().as_integer(), Some(1));
     assert!(scoped.get("commands").unwrap().as_array().unwrap().is_empty()); // skipped on request
-    // A late-evening event belongs to the viewer's local day.
+                                                                             // A late-evening event belongs to the viewer's local day.
     record(&t.data(), &call("s4", "/p/one", "Bash", "PreToolUse"), "hook", "codex", Some("2026-10-09T23:30:00.000+00:00")).unwrap();
     let local = store::overview(&t.data(), &Filter { from: "2026-10-09T22:00:00.000+00:00", ..Default::default() }, 120, true).unwrap();
     assert_eq!(local.get("by_day").unwrap().as_array().unwrap()[0].get("day").unwrap().as_str(), Some("2026-10-10"));
@@ -799,7 +939,28 @@ fn stored_events_keep_the_v02_shape() {
     assert_eq!(
         keys,
         // `id`, `services` and `watch` are added when reading; the stored JSON keeps the v0.2 keys.
-        ["session_id", "turn_id", "tool_use_id", "cwd", "model", "permission_mode", "source", "agent_type", "received_at", "agent", "event", "tool", "category", "status", "arguments", "outcome", "origin", "id", "services", "watch"]
+        [
+            "session_id",
+            "turn_id",
+            "tool_use_id",
+            "cwd",
+            "model",
+            "permission_mode",
+            "source",
+            "agent_type",
+            "received_at",
+            "agent",
+            "event",
+            "tool",
+            "category",
+            "status",
+            "arguments",
+            "outcome",
+            "origin",
+            "id",
+            "services",
+            "watch"
+        ]
     );
     assert!(row.get("arguments").unwrap().to_compact().contains("git status"));
     assert_ne!(MASK, "");
@@ -841,10 +1002,19 @@ fn codex_project_hooks_stay_out_of_git() {
     let t = Temp::new();
     let repo = t.0.join("project");
     fs::create_dir_all(&repo).unwrap();
-    let git = |args: &[&str]| Command::new("git").arg("-C").arg(&repo).args(["-c", "user.name=T", "-c", "user.email=t@example.invalid"]).args(args).output().unwrap();
+    let git = |args: &[&str]| {
+        Command::new("git")
+            .arg("-C")
+            .arg(&repo)
+            .args(["-c", "user.name=T", "-c", "user.email=t@example.invalid"])
+            .args(args)
+            .output()
+            .unwrap()
+    };
     assert!(git(&["init", "-q"]).status.success());
     let init = || {
-        let out = Command::new(BIN).arg("--data-dir").arg(t.data()).args(["init", "--agent", "codex", "--project"]).arg(&repo).output().unwrap();
+        let out =
+            Command::new(BIN).arg("--data-dir").arg(t.data()).args(["init", "--agent", "codex", "--project"]).arg(&repo).output().unwrap();
         assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
         String::from_utf8_lossy(&out.stdout).to_string()
     };
@@ -861,11 +1031,20 @@ fn codex_project_hooks_stay_out_of_git() {
     let shared = t.0.join("shared");
     fs::create_dir_all(shared.join(".codex")).unwrap();
     fs::write(shared.join(".codex/hooks.json"), "{}").unwrap();
-    let git2 = |args: &[&str]| Command::new("git").arg("-C").arg(&shared).args(["-c", "user.name=T", "-c", "user.email=t@example.invalid"]).args(args).output().unwrap();
+    let git2 = |args: &[&str]| {
+        Command::new("git")
+            .arg("-C")
+            .arg(&shared)
+            .args(["-c", "user.name=T", "-c", "user.email=t@example.invalid"])
+            .args(args)
+            .output()
+            .unwrap()
+    };
     git2(&["init", "-q"]);
     git2(&["add", "."]);
     assert!(git2(&["commit", "-qm", "hooks"]).status.success());
-    let out = Command::new(BIN).arg("--data-dir").arg(t.data()).args(["init", "--agent", "codex", "--project"]).arg(&shared).output().unwrap();
+    let out =
+        Command::new(BIN).arg("--data-dir").arg(t.data()).args(["init", "--agent", "codex", "--project"]).arg(&shared).output().unwrap();
     assert!(String::from_utf8_lossy(&out.stdout).contains("git rm --cached .codex/hooks.json"));
 }
 
@@ -883,7 +1062,17 @@ fn an_existing_data_folder_keeps_its_permissions() {
     assert_eq!(fs::metadata(&mine).unwrap().permissions().mode() & 0o777, 0o755);
     assert_eq!(fs::metadata(mine.join("events.sqlite3")).unwrap().permissions().mode() & 0o777, 0o600);
     // doctor says the folder is open to others, and how to close it.
-    let doctor = Command::new(BIN).arg("--data-dir").arg(&mine).arg("doctor").arg("--codex-dir").arg(t.codex()).arg("--claude-dir").arg(t.claude()).env("NO_COLOR", "1").output().unwrap();
+    let doctor = Command::new(BIN)
+        .arg("--data-dir")
+        .arg(&mine)
+        .arg("doctor")
+        .arg("--codex-dir")
+        .arg(t.codex())
+        .arg("--claude-dir")
+        .arg(t.claude())
+        .env("NO_COLOR", "1")
+        .output()
+        .unwrap();
     let text = String::from_utf8_lossy(&doctor.stdout);
     assert!(text.contains("Other users of this computer can open the journal") && text.contains("chmod 700"), "{text}");
     // A folder llca creates itself is private.
@@ -950,7 +1139,7 @@ fn redact_command_cleans_events_recorded_by_earlier_versions() {
     assert!(!text.contains("LEAKED"), "{text}");
     assert!(text.contains("sig=[REDACTED]") && text.contains("[CONTENT NOT KEPT]"), "{text}");
     assert!(text.contains("git status")); // untouched
-    // The old text is gone from the files on disk, not only from the rows.
+                                          // The old text is gone from the files on disk, not only from the rows.
     for entry in fs::read_dir(t.data()).unwrap() {
         let bytes = fs::read(entry.unwrap().path()).unwrap();
         assert!(!bytes.windows(6).any(|w| w == b"LEAKED"));
@@ -1013,7 +1202,10 @@ fn audit_reports_uncovered_values_without_printing_them() {
 #[test]
 fn events_say_which_kind_of_secret_went_through_the_agent() {
     let t = Temp::new();
-    let args = obj![("command", "git clone https://bob:pa55word@git.example/r.git && curl 'https://x.example/f?sig=abc123' -H 'Authorization: Bearer xyz'")];
+    let args = obj![(
+        "command",
+        "git clone https://bob:pa55word@git.example/r.git && curl 'https://x.example/f?sig=abc123' -H 'Authorization: Bearer xyz'"
+    )];
     record(&t.data(), &with(payload("PreToolUse"), "tool_input", args), "hook", "codex", None).unwrap();
     record(&t.data(), &payload("PreToolUse"), "hook", "codex", None).unwrap();
     let rows = all(&t.data());
@@ -1028,17 +1220,28 @@ fn events_say_which_kind_of_secret_went_through_the_agent() {
 fn overview_map_shows_where_each_agent_went() {
     let t = Temp::new();
     let call = |sid: &str, id: &str, tool: &str, input: Value, event: &str| {
-        obj![("session_id", sid), ("cwd", "/Users/me/projects/infra"), ("tool_use_id", id), ("hook_event_name", event), ("tool_name", tool), ("tool_input", input)]
+        obj![
+            ("session_id", sid),
+            ("cwd", "/Users/me/projects/infra"),
+            ("tool_use_id", id),
+            ("hook_event_name", event),
+            ("tool_name", tool),
+            ("tool_input", input)
+        ]
     };
     let gcloud = obj![("command", "gcloud projects describe demo --format=json")];
     record(&t.data(), &call("s1", "a", "Bash", gcloud.clone(), "PreToolUse"), "hook", "codex", None).unwrap();
     let failed = with(call("s1", "a", "Bash", gcloud, "PostToolUse"), "tool_response", obj![("exit_code", Value::int(1))]);
     record(&t.data(), &failed, "hook", "codex", None).unwrap();
-    record(&t.data(), &call("s2", "b", "WebFetch", obj![("url", "https://docs.example.dev/x")], "PreToolUse"), "hook", "claude-code", None).unwrap();
-    record(&t.data(), &call("s2", "c", "mcp__github__create_issue", obj![("token", "abc")], "PreToolUse"), "hook", "claude-code", None).unwrap();
+    record(&t.data(), &call("s2", "b", "WebFetch", obj![("url", "https://docs.example.dev/x")], "PreToolUse"), "hook", "claude-code", None)
+        .unwrap();
+    record(&t.data(), &call("s2", "c", "mcp__github__create_issue", obj![("token", "abc")], "PreToolUse"), "hook", "claude-code", None)
+        .unwrap();
     let ov = store::overview(&t.data(), &Filter::default(), 0, false).unwrap();
     let map = ov.get("map").unwrap();
-    let find = |name: &str| map.get("resources").unwrap().as_array().unwrap().iter().find(|r| r.get("name").unwrap().as_str() == Some(name)).cloned().unwrap();
+    let find = |name: &str| {
+        map.get("resources").unwrap().as_array().unwrap().iter().find(|r| r.get("name").unwrap().as_str() == Some(name)).cloned().unwrap()
+    };
     let gcp = find("Google Cloud");
     assert_eq!(gcp.get("category").unwrap().as_str(), Some("service"));
     assert_eq!(gcp.get("agents").unwrap().get("codex").unwrap().as_integer(), Some(1)); // one call, two events

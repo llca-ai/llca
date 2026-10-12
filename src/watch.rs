@@ -209,11 +209,17 @@ pub fn matches<'r>(rules: &'r Rules, s: &Subject) -> Vec<Match<'r>> {
     for rule in &rules.rules {
         let hit = match rule.kind {
             // A path the tool names, or a path written in the command.
-            Kind::File => s.files.iter().find(|f| rule.found_in(f)).cloned().or_else(|| rule.found_in(&s.command).then(|| s.command.clone())),
+            Kind::File => {
+                s.files.iter().find(|f| rule.found_in(f)).cloned().or_else(|| rule.found_in(&s.command).then(|| s.command.clone()))
+            }
             Kind::Command => rule.found_in(&s.command).then(|| s.command.clone()),
             Kind::Tool => rule.found_in(s.tool).then(|| s.tool.to_string()),
             // A service is named in full ("Stripe"), unless the pattern has a *.
-            Kind::Service => s.services.iter().find(|name| if rule.pattern.contains('*') { rule.found_in(name) } else { name.eq_ignore_ascii_case(rule.pattern.trim()) }).cloned(),
+            Kind::Service => s
+                .services
+                .iter()
+                .find(|name| if rule.pattern.contains('*') { rule.found_in(name) } else { name.eq_ignore_ascii_case(rule.pattern.trim()) })
+                .cloned(),
         };
         if let Some(matched) = hit {
             // One entry per label: rules sharing a label count as one.
@@ -230,7 +236,15 @@ pub fn to_json(found: &[Match]) -> Value {
     Value::Array(
         found
             .iter()
-            .map(|m| obj![("label", m.rule.label.clone()), ("alert", m.rule.alert), ("line", Value::int(m.rule.line as i64)), ("rule", format!("{} {}", m.rule.kind.name(), m.rule.pattern)), ("matched", m.matched.clone())])
+            .map(|m| {
+                obj![
+                    ("label", m.rule.label.clone()),
+                    ("alert", m.rule.alert),
+                    ("line", Value::int(m.rule.line as i64)),
+                    ("rule", format!("{} {}", m.rule.kind.name(), m.rule.pattern)),
+                    ("matched", m.matched.clone())
+                ]
+            })
             .collect(),
     )
 }
@@ -240,7 +254,12 @@ mod tests {
     use super::*;
 
     fn subject<'a>(tool: &'a str, command: &str, files: &[&str], services: &[&str]) -> Subject<'a> {
-        Subject { tool, command: command.into(), files: files.iter().map(|f| f.to_string()).collect(), services: services.iter().map(|s| s.to_string()).collect() }
+        Subject {
+            tool,
+            command: command.into(),
+            files: files.iter().map(|f| f.to_string()).collect(),
+            services: services.iter().map(|s| s.to_string()).collect(),
+        }
     }
 
     #[test]
@@ -267,7 +286,10 @@ mod tests {
         assert_eq!(labels(&subject("Bash", "cp .env.example .env", &[], &[])), ["Env"]);
         assert_eq!(labels(&subject("Bash", "KUBECTL apply -f x.yaml --context prod", &[], &[])), ["Prod"]);
         // Two rules with the same label: one entry.
-        assert_eq!(labels(&subject("Bash", "gcloud run deploy --project shop-prod && kubectl get pods --context prod", &[], &["Google Cloud"])), ["Prod"]);
+        assert_eq!(
+            labels(&subject("Bash", "gcloud run deploy --project shop-prod && kubectl get pods --context prod", &[], &["Google Cloud"])),
+            ["Prod"]
+        );
         assert!(labels(&subject("Bash", "kubectl get pods --context staging", &[], &[])).is_empty());
         assert_eq!(labels(&subject("mcp__claude_ai_Gmail__send_message", "", &[], &["Gmail"])), ["Mail"]);
         assert!(labels(&subject("mcp__claude_ai_Gmail__search_threads", "", &[], &["Gmail"])).is_empty());
