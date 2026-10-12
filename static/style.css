@@ -193,11 +193,16 @@ h1, h2, h3, h4, p { margin: 0; }
 .rail { position: sticky; top: 0; height: 100vh; padding: 26px 18px; border-right: 1px solid var(--rule); background: var(--surface); display: flex; flex-direction: column; gap: 26px; }
 .brand { display: flex; align-items: center; gap: 9px; font-weight: 650; font-size: 17px; color: var(--ink); text-decoration: none; letter-spacing: -0.2px; }
 /* The llca-ai logo (an eye around a terminal prompt): outline in the ink
-   colour, so it follows the theme; the iris stays dark with a green prompt. */
+   colour, so it follows the theme; dark iris with a green prompt. In the dark
+   theme the iris is a lighter grey with a light ring, to stand out. */
 .mark { width: 34px; height: 21px; flex: none; display: block; }
 .mark-eye { stroke: var(--ink); }
 .mark-iris { fill: #14161a; }
 .mark-prompt { stroke: #2ee6b0; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mark-iris { fill: #2b3632; stroke: var(--ink); stroke-width: 1.6; }
+}
+:root[data-theme="dark"] .mark-iris { fill: #2b3632; stroke: var(--ink); stroke-width: 1.6; }
 .brand-text { display: flex; flex-direction: column; min-width: 0; }
 .brand-name { line-height: 1.15; }
 .brand-tagline { font-size: 11px; font-weight: 450; color: var(--muted); letter-spacing: 0; line-height: 1.3; white-space: nowrap; }
