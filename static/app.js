@@ -555,7 +555,8 @@ function renderTimeline() {
     const block = node('section', undefined, 'session ' + (session.agent || ''));
     const head = node('header', undefined, 'session-head');
     const name = node('h3');
-    name.append(node('span', '', 'swatch ' + (session.agent || '')), agentName(session.agent) + ' in ', node('strong', project(session.cwd)));
+    // The agent's logo in its colour; a colour swatch for an agent without one.
+    name.append(agentLogo(session.agent) || node('span', '', 'swatch ' + (session.agent || '')), agentName(session.agent) + ' in ', node('strong', project(session.cwd)));
     const meta = node('p', undefined, 'session-meta');
     const range = dayLabel(session.start) + ', ' + time(session.start) + (session.end ? '–' + time(session.end) : '');
     // Filtered by kind, result, service, rule or search, the server only sends
