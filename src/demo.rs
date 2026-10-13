@@ -1,11 +1,14 @@
-//! Demo data: a short, realistic story across three sessions. All values are fictitious.
+//! Demo data: a short, realistic story across three sessions over the last
+//! three days, after a month of ordinary work. All values are fictitious.
 
 use std::path::Path;
 
 use crate::json::{self, Map, Value};
+use crate::obj;
 use crate::store::{record, Error};
 use crate::util;
 
+#[derive(Clone, Copy)]
 enum Outcome {
     Response(&'static str),
     Approve,
@@ -128,6 +131,7 @@ file ~/.ssh/                    # Touched SSH keys
 pub fn fill(dir: &Path) -> Result<(), Error> {
     use Outcome::*;
     let mut clock = Clock(0);
+    history(dir, &mut clock)?;
     let ok = r#"{"stdout": "output not kept"}"#;
     session(
         dir,
@@ -135,7 +139,7 @@ pub fn fill(dir: &Path) -> Result<(), Error> {
         "codex",
         "demo-codex-shop",
         "/Users/demo/projects/shop-api",
-        115,
+        3 * 24 * 60 + 115, // three days ago
         &[
             ("Bash", r#"{"command": ["bash", "-lc", "git status --short"]}"#, Response(r#"{"exit_code": 0}"#)),
             (
@@ -172,7 +176,7 @@ pub fn fill(dir: &Path) -> Result<(), Error> {
         "claude-code",
         "demo-claude-landing",
         "/Users/demo/projects/landing-page",
-        48,
+        24 * 60 + 48, // yesterday
         &[
             ("Read", r#"{"file_path": "/Users/demo/projects/landing-page/README.md"}"#, Response(ok)),
             ("Grep", r#"{"pattern": "TODO", "path": "src"}"#, Response(ok)),
@@ -218,22 +222,22 @@ pub fn fill(dir: &Path) -> Result<(), Error> {
         &[
             (
                 "mcp__cua_repl__js",
-                r#"{"code": "await app('Weather').open()", "title": "Ouvrir l'app Météo"}"#,
+                r#"{"code": "await app('Weather').open()", "title": "Open the Weather app"}"#,
                 Response(r#"{"isError": false}"#),
             ),
             (
                 "mcp__cua_repl__js",
-                r#"{"code": "await ui.click('Paris')", "title": "Afficher les prévisions de Paris"}"#,
+                r#"{"code": "await ui.click('Paris')", "title": "Show the forecast for Paris"}"#,
                 Response(r#"{"isError": false}"#),
             ),
             (
                 "mcp__cua_repl__js",
-                r#"{"code": "await ui.click('10-day forecast')", "title": "Ouvrir le détail des prévisions"}"#,
+                r#"{"code": "await ui.click('10-day forecast')", "title": "Open the 10-day forecast"}"#,
                 Response(r#"{"isError": false}"#),
             ),
             (
                 "mcp__cua_repl__js",
-                r#"{"code": "await ui.press('Escape')", "title": "Refermer le détail des prévisions"}"#,
+                r#"{"code": "await ui.press('Escape')", "title": "Close the forecast"}"#,
                 Response(r#"{"isError": false}"#),
             ),
             (
@@ -253,4 +257,167 @@ pub fn fill(dir: &Path) -> Result<(), Error> {
     )?;
     std::fs::write(dir.join(crate::watch::FILE_NAME), DEMO_RULES)?;
     Ok(())
+}
+
+/// The projects of the month before the story, with files they change and
+/// commands they run.
+const PROJECTS: [(&str, &[&str], &[&str]); 6] = [
+    (
+        "shop-api",
+        &["src/cart.py", "src/orders.py", "src/api/routes.py", "tests/test_orders.py"],
+        &["python -m pytest -q", "ruff check .", "stripe events list --limit 5", "docker compose up -d db", "supabase db diff"],
+    ),
+    (
+        "landing-page",
+        &["src/pages/index.tsx", "src/components/Pricing.tsx", "src/hero.css", "tests/hero.spec.ts"],
+        &["npm run build", "npm test", "npx eslint src", "vercel deploy --prebuilt", "open -a Figma"],
+    ),
+    (
+        "infra",
+        &["main.tf", "modules/dns/main.tf", "k8s/deploy.yaml", "Makefile"],
+        &[
+            "terraform plan",
+            "terraform fmt -check",
+            "gcloud run services list",
+            "npx wrangler deploy --dry-run",
+            "kubectl get pods -n staging",
+        ],
+    ),
+    (
+        "docs-site",
+        &["docs/getting-started.md", "docs/api.md", "astro.config.mjs", "src/layouts/Docs.astro"],
+        &["npm run build", "npx markdownlint docs", "netlify deploy --dir dist", "npx linkinator dist"],
+    ),
+    (
+        "mobile-app",
+        &["app/(tabs)/index.tsx", "app.json", "src/hooks/useCart.ts", "src/api/client.ts"],
+        &["npx tsc --noEmit", "npx expo-doctor", "eas build --platform ios --profile preview", "npm test -- --watch=false"],
+    ),
+    (
+        "data-pipeline",
+        &["dags/orders.py", "models/daily_orders.sql", "tests/test_transform.py", "pyproject.toml"],
+        &[
+            "pytest tests -q",
+            "dbt run --select daily_orders",
+            "bq query --use_legacy_sql=false 'select count(*) from demo.orders'",
+            "gsutil ls gs://demo-exports/",
+        ],
+    ),
+];
+
+const SHARED_COMMANDS: [&str; 6] =
+    ["git status --short", "git diff --stat", "git log --oneline -5", "rg TODO", "gh pr create --fill", "gh run list --limit 5"];
+
+const PAGES: [&str; 8] = [
+    "https://react.dev/reference/react/useEffect",
+    "https://nextjs.org/docs/app/building-your-application/routing",
+    "https://docs.python.org/3/library/asyncio-task.html",
+    "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+    "https://registry.terraform.io/providers/hashicorp/google/latest/docs",
+    "https://docs.expo.dev/build/introduction/",
+    "https://stackoverflow.com/questions/demo/flaky-playwright-test",
+    "https://docs.getdbt.com/docs/build/incremental-models",
+];
+
+/// Connected apps (MCP): tool name and arguments, `{project}` replaced.
+const APPS: [(&str, &str); 9] = [
+    ("mcp__github__list_issues", r#"{"owner": "demo", "repo": "{project}", "state": "open"}"#),
+    ("mcp__github__get_pull_request", r#"{"owner": "demo", "repo": "{project}", "pull_number": 42}"#),
+    ("mcp__linear__create_issue", r#"{"team": "Core", "title": "Follow up on the flaky test in {project}"}"#),
+    ("mcp__sentry__get_issue", r#"{"issue": "DEMO-4821"}"#),
+    ("mcp__claude_ai_Notion__search", r#"{"query": "release checklist"}"#),
+    ("mcp__supabase__list_tables", r#"{"schemas": ["public"]}"#),
+    ("mcp__vercel__list_deployments", r#"{"project": "{project}"}"#),
+    ("mcp__figma__get_file", r#"{"file": "Landing v3"}"#),
+    ("mcp__claude_ai_Slack__slack_send_message", r##"{"channel": "#releases", "text": "private"}"##),
+];
+
+/// A month of ordinary sessions before the story, so that the 30-day view
+/// looks like real use. The same every time (fixed pseudo-random sequence).
+fn history(dir: &Path, clock: &mut Clock) -> Result<(), Error> {
+    let mut seed: u64 = 0x11ca_de30;
+    let mut pick = move |n: usize| -> usize {
+        seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        ((seed >> 33) as usize) % n
+    };
+    for day in (4..30i64).rev() {
+        let sessions = [0, 1, 2, 2, 2, 3, 3][pick(7)];
+        for s in 0..sessions {
+            let agent = if pick(5) < 3 { "claude-code" } else { "codex" };
+            let (project, files, commands) = PROJECTS[pick(PROJECTS.len())];
+            let calls: Vec<(String, String, Outcome)> =
+                (0..6 + pick(14)).map(|_| ordinary_call(agent, project, files, commands, &mut pick)).collect();
+            let calls: Vec<(&str, &str, Outcome)> = calls.iter().map(|(t, i, o)| (t.as_str(), i.as_str(), *o)).collect();
+            let start = day * 24 * 60 + (s as i64) * 150 + pick(240) as i64;
+            let sid = format!("demo-{agent}-{project}-{day}-{s}");
+            session(dir, clock, agent, &sid, &format!("/Users/demo/projects/{project}"), start, &calls, true)?;
+        }
+    }
+    Ok(())
+}
+
+fn ordinary_call(
+    agent: &str,
+    project: &str,
+    files: &[&str],
+    commands: &[&str],
+    pick: &mut impl FnMut(usize) -> usize,
+) -> (String, String, Outcome) {
+    use Outcome::*;
+    let codex = agent == "codex";
+    let ok = if codex { r#"{"exit_code": 0}"# } else { r#"{"stdout": "output not kept"}"# };
+    let failed = if codex { Response(r#"{"exit_code": 1}"#) } else { Fail };
+    let path = |file: &str| format!("/Users/demo/projects/{project}/{file}");
+    let shell = |command: &str| {
+        let input = if codex {
+            obj![("command", Value::Array(vec![Value::str("bash"), Value::str("-lc"), Value::str(command)]))]
+        } else {
+            obj![("command", command), ("description", "Run a command")]
+        };
+        ("Bash".to_string(), input.to_compact())
+    };
+    let roll = pick(100);
+    let (tool, input, outcome) = match roll {
+        0..=29 => {
+            let command = if pick(3) == 0 { SHARED_COMMANDS[pick(SHARED_COMMANDS.len())] } else { commands[pick(commands.len())] };
+            let (tool, input) = shell(command);
+            (tool, input, if pick(12) == 0 { failed } else { Response(ok) })
+        }
+        30..=33 => {
+            let branch = if pick(4) == 0 { "main" } else { "feature/next" };
+            let (tool, input) = shell(&format!("git push origin {branch}"));
+            (tool, input, Approve)
+        }
+        34..=58 => {
+            let file = files[pick(files.len())];
+            if codex {
+                let patch = format!("*** Begin Patch\n*** Update File: {file}\n@@\n-a\n+b\n*** End Patch");
+                ("apply_patch".to_string(), obj![("command", patch)].to_compact(), Response(r#"{"success": true}"#))
+            } else {
+                let input = obj![("file_path", path(file)), ("old_string", "private"), ("new_string", "private")];
+                ("Edit".to_string(), input.to_compact(), Response(ok))
+            }
+        }
+        59..=78 => {
+            let file = files[pick(files.len())];
+            if codex {
+                let (tool, input) = shell(&format!("sed -n '1,120p' {file}"));
+                (tool, input, Response(ok))
+            } else if pick(2) == 0 {
+                ("Read".to_string(), obj![("file_path", path(file))].to_compact(), Response(ok))
+            } else {
+                ("Grep".to_string(), obj![("pattern", "TODO|FIXME"), ("path", "src")].to_compact(), Response(ok))
+            }
+        }
+        79..=87 if !codex => {
+            let url = PAGES[pick(PAGES.len())];
+            ("WebFetch".to_string(), obj![("url", url), ("prompt", "Summarize")].to_compact(), Response(ok))
+        }
+        _ => {
+            let (tool, input) = APPS[pick(APPS.len())];
+            let response = if codex { r#"{"isError": false}"# } else { ok };
+            (tool.to_string(), input.replace("{project}", project), if pick(15) == 0 { failed } else { Response(response) })
+        }
+    };
+    (tool, input, outcome)
 }

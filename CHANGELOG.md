@@ -13,6 +13,9 @@ First public release.
   changes the setting. The collector deletes at most 2,000 old events per hour,
   and `llca open` deletes the rest when it starts. `llca doctor` shows the
   setting.
+- `llca demo` shows a month of sample activity across six projects, so that
+  the 30-day view looks like real use.
+- README: screenshots of the dashboard and a diagram of how llca works.
 
 ## [0.7.5] - 2026-10-12
 

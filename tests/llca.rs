@@ -873,12 +873,25 @@ fn logs_json_and_text_output() {
 fn demo_data_is_well_formed() {
     let t = Temp::new();
     llca::demo::fill(&t.data()).unwrap();
-    let rows = all(&t.data());
-    assert_eq!(rows.len(), 76);
+    let mut rows = Vec::new();
+    let mut before = 0;
+    loop {
+        let page = query(&t.data(), &Filter { limit: 500, before, ..Default::default() }).unwrap();
+        rows.extend(page.events);
+        match page.next {
+            Some(next) => before = next,
+            None => break,
+        }
+    }
+    // A month of ordinary work, then the three sessions of the story (76 events).
+    assert!(rows.len() > 1000, "{}", rows.len());
+    let story = ["demo-codex-shop", "demo-claude-landing", "demo-codex-infra"];
+    let in_story = |r: &&Value| r.get("session_id").and_then(Value::as_str).is_some_and(|s| story.contains(&s));
+    assert_eq!(rows.iter().filter(in_story).count(), 76);
     let dump = Value::Array(rows).to_compact();
     assert!(!dump.contains("sk_live_51Hdemo"));
     // Computer Use: the step title is kept, the script is not.
-    assert!(dump.contains("Refermer le détail des prévisions") && !dump.contains("ui.press"));
+    assert!(dump.contains("Close the forecast") && !dump.contains("ui.press"));
 }
 
 #[test]
