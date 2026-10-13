@@ -15,6 +15,11 @@ A local, private log of what <b>Codex</b> and <b>Claude Code</b> do on your mach
   <img src="assets/screenshots/overview-light.png" alt="The llca dashboard over the last 30 days: an alert for secrets that went through the agents, key figures and actions per day for Codex and Claude Code">
 </picture>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/activity-dark.png">
+  <img src="assets/screenshots/activity-light.png" alt="The activity list: each action in plain words, grouped by session, with the details of an action that sent a secret to Cloudflare">
+</picture>
+
 Coding agents run commands, edit files, call online services and sometimes see your secrets. llca records the tool calls they report through their hooks, masks recognised secrets **before** anything is written, and shows it all in a dashboard on your own computer. One binary, no account, and llca sends nothing anywhere. Runs on **macOS** and **Linux**; Cursor, Gemini CLI and Copilot CLI are next.
 
 ## What you get
