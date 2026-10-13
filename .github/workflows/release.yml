@@ -1,6 +1,11 @@
-# Builds the release archives when a version tag is pushed (git tag v0.7.6 &&
-# git push origin v0.7.6), then publishes a GitHub release with that version's
-# notes from CHANGELOG.md. The tag must match the version in Cargo.toml.
+# Builds the release archives when a version tag is pushed (git tag v0.7.7 &&
+# git push origin v0.7.7), publishes a GitHub release with that version's
+# notes from CHANGELOG.md, then points the Homebrew tap (llca-ai/homebrew-tap)
+# at the new archives. The tag must match the version in Cargo.toml.
+#
+# The tap update needs a secret named HOMEBREW_TAP_TOKEN: a fine-grained token
+# with "Contents: Read and write" on llca-ai/homebrew-tap only. Without it, the
+# release is still published and the job says how to update the tap by hand.
 name: Release
 
 on:
@@ -104,3 +109,37 @@ jobs:
             --title "llca ${GITHUB_REF_NAME#v}" \
             --notes-file notes.md \
             --verify-tag
+
+  tap:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Update the Homebrew tap
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::notice::HOMEBREW_TAP_TOKEN is not set. Update the tap by hand: sh scripts/homebrew-formula.sh $VERSION > Formula/llca.rb in llca-ai/homebrew-tap"
+            exit 0
+          fi
+          git clone --depth 1 "https://x-access-token:$TAP_TOKEN@github.com/llca-ai/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          sh scripts/homebrew-formula.sh "$VERSION" dist > tap/Formula/llca.rb
+          ruby -c tap/Formula/llca.rb
+          cd tap
+          git add Formula/llca.rb
+          if git diff --cached --quiet; then
+            echo "The tap already installs llca $VERSION."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "llca $VERSION"
+          git push
+          echo "Tap updated: brew upgrade llca installs $VERSION."

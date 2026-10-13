@@ -3,3 +3,5 @@ dist/
 Formula/
 audit-*
 .DS_Store
+node_modules/
+package-lock.json

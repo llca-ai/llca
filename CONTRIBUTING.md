@@ -101,3 +101,29 @@ Structural cases (heredoc bodies, private key blocks, `curl -u user:pass`,
 are handled in
 `src/redact.rs`, because their shape needs code. Changes there need Rust and
 a case in `rules/cases.txt` as well.
+
+## Screenshots
+
+The README screenshots come from `llca demo`, over the last 30 days, in light
+and dark. To take them again after changing the dashboard:
+
+```sh
+cargo build --release
+npm install --no-save playwright && npx playwright install chromium
+node scripts/screenshots.mjs
+```
+
+With Python and Pillow (`pip install pillow`), the images are reduced to 256
+colours, about a third of their size.
+
+## Releasing (maintainers)
+
+1. Set `version` in `Cargo.toml` and add a `## [X.Y.Z] - date` section at the
+   top of `CHANGELOG.md`. Commit, push, and wait for CI.
+2. `git tag vX.Y.Z && git push origin vX.Y.Z`. The release workflow tests,
+   builds the four archives (macOS arm64 and Intel, Linux x86_64 and arm64),
+   publishes the release with that version's notes, and updates the Homebrew
+   tap.
+3. Without the `HOMEBREW_TAP_TOKEN` secret, update the tap by hand:
+   `sh scripts/homebrew-formula.sh X.Y.Z > Formula/llca.rb` in
+   `llca-ai/homebrew-tap`, then commit and push.

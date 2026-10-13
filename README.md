@@ -34,7 +34,7 @@ llca is a security and audit log, not a debugger. To replay full Claude Code tra
 
 ## Install
 
-With Homebrew, on macOS or Linux (it builds from source, which takes about a minute):
+With Homebrew, on macOS or Linux (it installs the prebuilt binary of the latest release, in a few seconds):
 
 ```sh
 brew install llca-ai/tap/llca
