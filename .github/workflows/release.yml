@@ -1,0 +1,106 @@
+# Builds the release archives when a version tag is pushed (git tag v0.7.6 &&
+# git push origin v0.7.6), then publishes a GitHub release with that version's
+# notes from CHANGELOG.md. The tag must match the version in Cargo.toml.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: macos-latest, target: x86_64-apple-darwin }
+          # The oldest Ubuntu runner, so that the binary works with older glibc.
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag matches Cargo.toml
+        shell: bash
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match version $VERSION in Cargo.toml" >&2
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: SQLite development files (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
+      - name: Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+          rustup default stable
+
+      - name: Test
+        if: matrix.target != 'x86_64-apple-darwin'
+        run: cargo test --release --locked
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Archive
+        shell: bash
+        run: |
+          NAME="llca-$VERSION-${{ matrix.target }}"
+          mkdir "$NAME"
+          cp "target/${{ matrix.target }}/release/llca" LICENSE README.md CHANGELOG.md SECURITY.md "$NAME/"
+          tar -czf "$NAME.tar.gz" "$NAME"
+          if command -v shasum >/dev/null; then shasum -a 256 "$NAME.tar.gz" > "$NAME.tar.gz.sha256"
+          else sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256"; fi
+          cat "$NAME.tar.gz.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: llca-*.tar.gz*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Notes from CHANGELOG.md
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v v="$VERSION" '
+            /^## \[/ { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then echo "No section for $VERSION in CHANGELOG.md" >&2; exit 1; fi
+          cat >> notes.md <<'EOF'
+
+          **Install:** `brew install llca-ai/tap/llca`, or download the archive for your system below. After an upgrade, run `llca init --global --agent all`.
+          EOF
+          cat notes.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "llca ${GITHUB_REF_NAME#v}" \
+            --notes-file notes.md \
+            --verify-tag

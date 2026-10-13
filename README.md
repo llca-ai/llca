@@ -4,13 +4,30 @@
 
 Written in Rust (versions 0.1–0.2 were a Python prototype). Runs on **macOS** and **Linux**.
 
+llca is a security and audit log, not a debugger: it keeps the minimum (never command output or file contents), redacts secrets *before* anything is written, tells you when a secret went through an agent, and shows which online services, applications and projects the agents reached. To replay full Claude Code transcripts, tokens and costs, use a debugging tool that reads them, such as claude-devtools, instead.
+
 ## Why Rust, and why no dependencies
 
 - **One binary, stable path.** `init` copies the binary into the data folder (`bin/llca`, see [Where the data lives](#where-the-data-lives)) and the hooks call that copy. Upgrading Homebrew, Python or moving the source folder can no longer break the hooks.
 - **Fast.** The collector runs on every agent action. It handles an event in about 3–5 ms (the Python version took 30–100 ms, mostly interpreter start-up).
 - **Nothing to audit but this repository.** There are no third-party crates: JSON, the HTTP server, secret redaction and SQLite bindings are written here (about 2,000 lines), and SQLite itself is the system library (`libsqlite3`, part of macOS and of every Linux distribution). For a tool that sees what your agents run, that matters.
 
-## Build and install
+## Install
+
+**With Homebrew** (macOS and Linux; builds from source, about a minute):
+
+```sh
+brew install llca-ai/tap/llca
+llca init --global --agent all   # install the hooks for Codex and Claude Code
+llca doctor                      # checkup
+llca open                        # dashboard
+```
+
+To upgrade: `brew upgrade llca`, then `llca init --global --agent all` again, so that the hooks use the new version (`llca doctor` reminds you).
+
+**Prebuilt binary.** Each [release](https://github.com/llca-ai/llca/releases) has an archive for macOS (Apple silicon and Intel) and Linux (x86_64 and arm64), with its SHA-256. Unpack it and put `llca` on your `PATH`. On Linux it needs the system SQLite library (`libsqlite3-0` on Debian and Ubuntu, `sqlite-libs` on Fedora, `sqlite` on Arch), present on most systems. On macOS, a binary downloaded with a browser is blocked by Gatekeeper because it is not signed: use Homebrew, or `curl` to download it.
+
+### From source
 
 You need Rust (`brew install rust` or [rustup](https://rustup.rs)) and:
 
@@ -26,14 +43,11 @@ cargo build --release            # → target/release/llca
 ./target/release/llca demo
 ```
 
-With Homebrew (local tap, nothing published):
+To try your changes through Homebrew, without publishing anything:
 
 ```sh
-sh scripts/package.sh            # tests, builds dist/llca-0.7.6.tar.gz, writes Formula/, updates the local tap
+sh scripts/package.sh            # tests, builds dist/llca-VERSION.tar.gz, writes Formula/, updates a local tap
 brew reinstall local/llca/llca    # or: brew install local/llca/llca
-llca init --global --agent all
-llca doctor
-llca open
 ```
 
 `package.sh` also clears Homebrew's cached archive, so `brew reinstall` always builds what you just packaged.
@@ -152,9 +166,9 @@ cargo clippy --all-targets -- -D warnings
 cargo fmt                  # formatting (rustfmt.toml: lines up to 140 characters)
 ```
 
-Every push and pull request runs the same three checks on macOS and Linux ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), plus a build with the oldest supported Rust (1.89).
+Every push and pull request runs the same three checks on macOS and Linux ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), plus a build with the oldest supported Rust (1.89). Pushing a tag `vX.Y.Z` that matches `Cargo.toml` builds the release archives ([`.github/workflows/release.yml`](.github/workflows/release.yml)) and publishes them with that version's notes from [CHANGELOG.md](CHANGELOG.md).
 
-The end-to-end tests cover: preserving existing configuration (RTK, other settings), repeatable install, backups, uninstall, the packaged collector run through a shell (paths with spaces and apostrophes), redaction before storage, statuses for both agents, the silent Claude Code collector, concurrent writes, pagination, HTTP access control and migration of a v0.1 journal. Redaction was also checked against the Python implementation on about 3,000 generated commands.
+The end-to-end tests cover: preserving existing configuration (another tool's hooks, other settings), repeatable install, backups, uninstall, the packaged collector run through a shell (paths with spaces and apostrophes), redaction before storage, statuses for both agents, the silent Claude Code collector, concurrent writes, pagination, HTTP access control and migration of a v0.1 journal. Redaction was also checked against the Python implementation on about 3,000 generated commands.
 
 Found a secret that slipped through, or another security issue? See [SECURITY.md](SECURITY.md): please report it privately. llca is released under the [MIT licence](LICENSE).
 

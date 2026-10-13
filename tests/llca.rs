@@ -85,7 +85,7 @@ fn cli(args: &[&str]) -> (i32, String) {
 fn merge_idempotency_backup_uninstall_and_executable_collector() {
     let t = Temp::new();
     fs::create_dir_all(t.codex()).unwrap();
-    let original = r#"{"custom": "keep", "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "rtk hook codex"}]}]}}"#;
+    let original = r#"{"custom": "keep", "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "other-tool hook codex"}]}]}}"#;
     let path = t.codex().join("hooks.json");
     fs::write(&path, original).unwrap();
     let result = configure(&t.codex(), &t.data(), false, "codex").unwrap();
@@ -829,7 +829,7 @@ fn journal_from_python_v01_is_migrated() {
 fn only_llca_handlers_are_ours() {
     let ours = |command: &str| is_ours(&obj![("type", "command"), ("command", command)]);
     assert!(ours("'/Users/me/Library/Application Support/llca/bin/llca' --data-dir /tmp/d hook --adapter codex-v0"));
-    assert!(!ours("rtk hook codex"));
+    assert!(!ours("other-tool hook codex"));
     // No compatibility with the former name: its hooks are not recognised.
     assert!(!ours("/tmp/d/bin/agentledger --data-dir /tmp/d hook --adapter codex-v0"));
 }

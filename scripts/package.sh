@@ -13,7 +13,7 @@ cargo test --release --quiet
 mkdir -p dist Formula
 STAGE=$(mktemp -d)
 mkdir "$STAGE/$NAME"
-cp -R Cargo.toml Cargo.lock README.md CONTRIBUTING.md SECURITY.md LICENSE src static rules "$STAGE/$NAME/"
+cp -R Cargo.toml Cargo.lock README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md LICENSE src static rules "$STAGE/$NAME/"
 tar -czf "dist/$NAME.tar.gz" -C "$STAGE" "$NAME"
 rm -rf "$STAGE"
 

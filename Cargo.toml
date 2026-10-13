@@ -5,6 +5,9 @@ authors = ["Yassine Bouayyad"]
 edition = "2021"
 description = "Local Ledger for Coding Agents: a local, private log of what Codex and Claude Code do on your machine"
 license = "MIT"
+repository = "https://github.com/llca-ai/llca"
+homepage = "https://github.com/llca-ai/llca"
+readme = "README.md"
 rust-version = "1.89"
 
 # No third-party crates on purpose: the collector runs on every agent action,
