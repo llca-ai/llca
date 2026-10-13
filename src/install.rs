@@ -154,7 +154,7 @@ fn remove_ours(config: &mut Map) -> Result<(), Error> {
 // ---------- Collector version ----------
 
 /// Command that refreshes the collector copy (and changes nothing else).
-pub const UPDATE_COMMAND: &str = "llca init --global --agent all";
+pub const UPDATE_COMMAND: &str = "llca init --global";
 
 /// `x.y.z` as numbers, for comparing versions.
 fn version_parts(v: &str) -> Vec<u64> {
@@ -277,25 +277,42 @@ pub fn configure(target: &Path, data_dir: &Path, uninstall: bool, agent: &str) -
     let events = agent_events(agent).ok_or_else(|| Error(format!("Unsupported agent: {agent}")))?;
     let file = config_file(target, agent);
     let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let data_dir = util::resolve(data_dir);
+    let unchanged = |path: &Path| {
+        obj![
+            ("agent", agent),
+            ("path", path.to_string_lossy().into_owned()),
+            ("changed", false),
+            ("backup", Value::Null),
+            ("uninstalled", uninstall),
+        ]
+    };
+    // Removing hooks from a configuration that does not exist: nothing to do,
+    // and no folder is created for an agent that is not installed.
+    if uninstall && !file.parent().is_some_and(Path::exists) {
+        forget_installation(&data_dir, &file)?;
+        return Ok(unchanged(&file));
+    }
     // Resolve the directory only: resolving the file would follow a symlink.
     let path = util::resolve(file.parent().unwrap_or(Path::new("."))).join(&name);
-    let data_dir = util::resolve(data_dir);
     fs::create_dir_all(path.parent().expect("parent"))?;
     if fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(Error(format!("{name} is a symbolic link; configure it manually")));
     }
-    let lock = File::options().create(true).truncate(false).write(true).open(path.with_file_name(".llca-install.lock"))?;
+    // The lock lives in llca's data folder, so nothing is left next to the
+    // agent's settings. Versions before 0.7.7 put it there: remove it.
+    util::private_dir(&data_dir)?;
+    let lock = File::options().create(true).truncate(false).write(true).open(data_dir.join("install.lock"))?;
     lock.lock()?;
+    let _ = fs::remove_file(path.with_file_name(".llca-install.lock"));
 
     let before = read_config(&path)?;
     let mut config = match &before {
         Some(b) if !String::from_utf8_lossy(b).trim().is_empty() => parse_config(b, &name)?,
-        _ => {
-            let mut m = Map::new();
-            m.insert("hooks", Value::Object(Map::new()));
-            m
-        }
+        _ => Map::new(),
     };
+    let original = config.clone();
+    let had_hooks = config.contains_key("hooks");
     remove_ours(&mut config)?;
     if !uninstall {
         install_collector(&data_dir)?;
@@ -309,12 +326,13 @@ pub fn configure(target: &Path, data_dir: &Path, uninstall: bool, agent: &str) -
                 _ => hooks.insert(*event, Value::Array(vec![group])),
             }
         }
-    } else if agent == "claude-code" && config.get("hooks").and_then(Value::as_object).is_some_and(Map::is_empty) {
+    } else if config.get("hooks").and_then(Value::as_object).is_some_and(Map::is_empty) && (agent == "claude-code" || !had_hooks) {
         // settings.json holds other settings: do not leave an empty hooks block behind.
         config.remove("hooks");
     }
-    let after = format!("{}\n", Value::Object(config).to_pretty()).into_bytes();
-    let changed = before.as_deref() != Some(after.as_slice());
+    // Compare contents, not text: a file that already says the same thing is
+    // left exactly as it is (indentation, spacing and line endings included).
+    let changed = original != config || (before.is_none() && !uninstall);
     let mut backup = Value::Null;
     if changed {
         if let Some(b) = before.as_ref().filter(|b| !b.is_empty()) {
@@ -323,10 +341,15 @@ pub fn configure(target: &Path, data_dir: &Path, uninstall: bool, agent: &str) -
             backup = Value::str(backup_path.to_string_lossy());
         }
         if before.is_some() || !uninstall {
+            // Keep the file's own indentation (2 spaces when it has none yet).
+            let width = before.as_deref().and_then(indent_width).unwrap_or(2);
+            let after = format!("{}\n", Value::Object(config).to_pretty_indent(width)).into_bytes();
             util::atomic_write(&path, &after, 0o600)?;
         }
     }
-    if !uninstall {
+    if uninstall {
+        forget_installation(&data_dir, &path)?;
+    } else {
         record_installation(&data_dir, agent, &path, &hook_command(&data_dir, agent))?;
     }
     Ok(obj![
@@ -338,16 +361,103 @@ pub fn configure(target: &Path, data_dir: &Path, uninstall: bool, agent: &str) -
     ])
 }
 
-fn record_installation(data_dir: &Path, agent: &str, path: &Path, command: &str) -> Result<(), Error> {
-    let file = data_dir.join("installation.json");
-    let mut current = fs::read_to_string(&file).ok().and_then(|t| json::parse(&t).ok()).and_then(|v| match v {
-        Value::Object(m) if !m.contains_key("codex_dir") => Some(m), // v0.1 single-agent format is replaced
-        _ => None,
-    });
-    let map = current.get_or_insert_with(Map::new);
-    map.insert(agent, obj![("config_path", path.to_string_lossy().into_owned()), ("command", command)]);
-    util::atomic_write(&file, Value::Object(map.clone()).to_pretty().as_bytes(), 0o600)?;
+/// The indentation of a JSON file: the spaces before its first indented line.
+fn indent_width(text: &[u8]) -> Option<usize> {
+    let text = std::str::from_utf8(text).ok()?;
+    text.lines().skip(1).find(|l| !l.trim().is_empty()).map(|l| l.len() - l.trim_start_matches(' ').len()).filter(|w| (1..=8).contains(w))
+}
+
+const INSTALLATIONS: &str = "installation.json";
+
+/// Where this data folder's collector is used: configuration file → agent and
+/// hook command. Read by `uninstall`, to remove the collector copy once no
+/// configuration uses it any more.
+fn installations(data_dir: &Path) -> Map {
+    let parsed = fs::read_to_string(data_dir.join(INSTALLATIONS)).ok().and_then(|t| json::parse(&t).ok());
+    let Some(Value::Object(map)) = parsed else { return Map::new() };
+    let mut out = Map::new();
+    for (key, entry) in map.iter() {
+        // Before 0.7.7 the key was the agent, with the file in "config_path".
+        match entry.get("config_path").and_then(Value::as_str) {
+            Some(file) if ADAPTERS.iter().any(|(_, a)| a == key) => {
+                out.insert(file, obj![("agent", key.as_str()), ("command", entry.get("command").cloned().unwrap_or(Value::Null))]);
+            }
+            _ if entry.get("agent").is_some() => out.insert(key.as_str(), entry.clone()),
+            _ => {}
+        }
+    }
+    out
+}
+
+fn save_installations(data_dir: &Path, map: Map) -> Result<(), Error> {
+    let file = data_dir.join(INSTALLATIONS);
+    if map.is_empty() {
+        match fs::remove_file(&file) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+            _ => return Ok(()),
+        }
+    }
+    util::atomic_write(&file, Value::Object(map).to_pretty().as_bytes(), 0o600)?;
     Ok(())
+}
+
+fn record_installation(data_dir: &Path, agent: &str, path: &Path, command: &str) -> Result<(), Error> {
+    let mut map = installations(data_dir);
+    map.insert(path.to_string_lossy(), obj![("agent", agent), ("command", command)]);
+    save_installations(data_dir, map)
+}
+
+fn forget_installation(data_dir: &Path, path: &Path) -> Result<(), Error> {
+    if !data_dir.join(INSTALLATIONS).exists() {
+        return Ok(());
+    }
+    let mut map = installations(data_dir);
+    map.remove(&path.to_string_lossy());
+    save_installations(data_dir, map)
+}
+
+/// True when a configuration file still runs this data folder's collector.
+fn uses_collector(path: &Path, data_dir: &Path) -> bool {
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let Some(config) = read_config(path).ok().flatten().and_then(|b| parse_config(&b, &name).ok()) else { return false };
+    let commands: Vec<String> = ADAPTERS.iter().map(|(_, agent)| hook_command(data_dir, agent)).collect();
+    let Some(hooks) = config.get("hooks").and_then(Value::as_object) else { return false };
+    let handlers =
+        hooks.iter().filter_map(|(_, groups)| groups.as_array()).flatten().filter_map(|g| g.get("hooks").and_then(Value::as_array));
+    let used =
+        handlers.flatten().any(|h| is_ours(h) && h.get("command").and_then(Value::as_str).is_some_and(|c| commands.iter().any(|x| x == c)));
+    used
+}
+
+/// After `uninstall`: remove the collector copy (bin/llca) when no
+/// configuration runs it any more — neither one recorded by `init`, nor one of
+/// `also` (the agents' default configurations). The journal is kept.
+/// Returns the removed path.
+pub fn remove_collector_if_unused(data_dir: &Path, also: &[(PathBuf, &str)]) -> Result<Option<PathBuf>, Error> {
+    let data_dir = util::resolve(data_dir);
+    let binary = collector_path(&data_dir);
+    if !binary.exists() {
+        return Ok(None);
+    }
+    let mut map = installations(&data_dir);
+    let recorded: Vec<String> = map.iter().map(|(k, _)| k.clone()).collect();
+    let mut used = false;
+    for file in recorded {
+        if uses_collector(Path::new(&file), &data_dir) {
+            used = true;
+        } else {
+            map.remove(&file); // a hook removed by hand, or a deleted project
+        }
+    }
+    save_installations(&data_dir, map)?;
+    used |= also.iter().any(|(target, agent)| uses_collector(&config_file(target, agent), &data_dir));
+    if used {
+        return Ok(None);
+    }
+    fs::remove_file(&binary)?;
+    let _ = fs::remove_dir(binary.parent().expect("bin directory")); // only if empty
+    let _ = fs::remove_file(data_dir.join("install.lock"));
+    Ok(Some(binary))
 }
 
 /// What `doctor` and the dashboard report about one agent.

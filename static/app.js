@@ -155,7 +155,8 @@ const RISKS = [
   [/\b(curl|wget)\b[^|;&]*\|\s*(sudo\s+)?(ba|z)?sh\b/, 'Runs a script downloaded from the internet'],
   [/\bchmod\s+(-R\s+)?0?777\b/, 'Makes files writable by everyone'],
   [/\b(npm|pnpm|yarn)\s+publish\b|\bdocker\s+push\b|\bgh\s+release\s+create\b/, 'Publishes a package or image'],
-  [/\b(terraform\s+(apply|destroy)|kubectl\s+(apply|delete))\b|\bdeploy\b/, 'Changes something that is live'],
+  // A deploy command, not a file or folder named "deploy" (cat deploy.md, ls deploy/).
+  [/\b(terraform\s+(apply|destroy)|kubectl\s+(apply|delete)|pulumi\s+up|helm\s+(upgrade|install))\b|\b(npm|pnpm|yarn|bun)\s+(run\s+)?deploy(:[\w-]+)?(?=\s|$)|\bmake\s+deploy\b|\b(vercel|netlify|firebase|flyctl|fly|wrangler|serverless|sls|cap|eb|railway|amplify|cdk|sam|gcloud|kamal|dokku|sst|az|docker\s+stack)(\s+[\w-]+){0,2}\s+deploy\b|\bvercel\s+(--prod|deploy)\b|(^|[;&|(]\s*|\b(sh|bash|zsh)\s+)(\S*\/)?deploy[\w.-]*\.sh\b/, 'Changes something that is live'],
 ];
 
 const STATUS_FLAGS = new Set(['It failed', 'It was denied', 'It asked for approval and no result was recorded']);
@@ -820,7 +821,7 @@ function renderRail(status) {
   const installed = Object.entries(status.installation || {}).filter(([, s]) => s.installed).map(([id]) => agentName(id));
   $('setup').textContent = status.demo ? 'Showing demo data.'
     : installed.length ? 'Recording ' + joinAnd(installed) + '.' + (installed.includes('Codex') ? ' Codex hooks must be trusted in /hooks.' : '')
-    : 'Not recording yet. Run llca init --global --agent all.';
+    : 'Not recording yet. Run llca init --global.';
 }
 
 // ---------- Period ----------

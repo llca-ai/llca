@@ -671,12 +671,12 @@ fn outdated_collector_is_reported() {
     };
     fake("#!/bin/sh\necho 0.5.0\n");
     assert_eq!((state("version").as_str(), state("outdated")), (Some("0.5.0"), Value::Bool(true)));
-    assert_eq!(state("fix").as_str(), Some("llca init --global --agent all"));
+    assert_eq!(state("fix").as_str(), Some("llca init --global"));
     let out = doctor(&[]);
     assert_eq!(out.status.code(), Some(1));
     let text = String::from_utf8_lossy(&out.stdout);
     assert!(
-        text.contains("1 problem to fix") && text.contains("older than this one") && text.contains("Fix: llca init --global --agent all"),
+        text.contains("1 problem to fix") && text.contains("older than this one") && text.contains("Fix: llca init --global"),
         "{text}"
     );
     // A copy that cannot say its version counts as outdated.
@@ -1315,4 +1315,124 @@ fn overview_map_shows_where_each_agent_went() {
     assert_eq!(infra.get("actions").unwrap().as_integer(), Some(3));
     assert_eq!(infra.get("project").unwrap().as_str(), Some("/Users/me/projects/infra"));
     assert_eq!(map.get("agents").unwrap().get("claude-code").unwrap().get("actions").unwrap().as_integer(), Some(2));
+}
+
+/// Runs the CLI with the agents' settings folders (and home) inside the temporary folder.
+fn cli_env(t: &Temp, args: &[&str]) -> (i32, String) {
+    let out = Command::new(BIN)
+        .arg("--data-dir")
+        .arg(t.data())
+        .args(args)
+        .env("HOME", &t.0)
+        .env("CODEX_HOME", t.codex())
+        .env("CLAUDE_CONFIG_DIR", t.claude())
+        .output()
+        .unwrap();
+    (out.status.code().unwrap_or(-1), String::from_utf8_lossy(&out.stdout).into())
+}
+
+#[test]
+fn init_without_agent_sets_up_the_agents_found() {
+    // Only Claude Code is installed: init sets it up and says Codex was skipped.
+    let t = Temp::new();
+    fs::create_dir_all(t.claude()).unwrap();
+    let (code, out) = cli_env(&t, &["init", "--global"]);
+    assert_eq!(code, 0, "{out}");
+    assert!(t.claude().join("settings.json").exists());
+    assert!(!t.codex().exists(), "no folder is created for an agent that is not installed");
+    assert!(out.contains("Codex: not found on this computer") && out.contains("llca init --global --agent codex"), "{out}");
+
+    // Both installed: both are set up.
+    let t = Temp::new();
+    fs::create_dir_all(t.claude()).unwrap();
+    fs::create_dir_all(t.codex()).unwrap();
+    let (code, out) = cli_env(&t, &["init", "--global"]);
+    assert_eq!(code, 0);
+    assert!(t.claude().join("settings.json").exists() && t.codex().join("hooks.json").exists());
+    assert!(!out.contains("not found"));
+
+    // Neither found yet: both are set up, ready for when they are installed.
+    let t = Temp::new();
+    assert_eq!(cli_env(&t, &["init", "--global"]).0, 0);
+    assert!(t.claude().join("settings.json").exists() && t.codex().join("hooks.json").exists());
+
+    // Only a Claude Code folder given: Claude Code only.
+    let t = Temp::new();
+    let claude = t.claude().to_string_lossy().into_owned();
+    assert_eq!(cli(&["--data-dir", &t.data().to_string_lossy(), "init", "--claude-dir", &claude]).0, 0);
+    assert!(t.claude().join("settings.json").exists() && !t.codex().exists());
+}
+
+#[test]
+fn init_keeps_a_settings_file_that_already_says_the_same() {
+    let t = Temp::new();
+    fs::create_dir_all(t.claude()).unwrap();
+    let settings = t.claude().join("settings.json");
+    // A file indented with 4 spaces, with a setting of its own.
+    fs::write(&settings, "{\n    \"model\": \"opus\",\n    \"attribution\": {\n        \"commit\": \"\"\n    }\n}\n").unwrap();
+    assert_eq!(cli_env(&t, &["init", "--global", "--agent", "claude"]).0, 0);
+    let first = fs::read_to_string(&settings).unwrap();
+    assert!(first.contains("\n    \"model\": \"opus\""), "the file keeps its 4-space indentation:\n{first}");
+    assert!(first.contains("\n        \"PreToolUse\""), "{first}");
+
+    // Reformatted by hand (2 spaces, no final newline): init has nothing to add and leaves it alone.
+    let reformatted = json::parse(&first).unwrap().to_pretty();
+    fs::write(&settings, &reformatted).unwrap();
+    let (_, out) = cli_env(&t, &["init", "--global", "--agent", "claude"]);
+    assert!(out.contains("\"changed\": false"), "{out}");
+    assert_eq!(fs::read_to_string(&settings).unwrap(), reformatted);
+    assert_eq!(
+        fs::read_dir(t.claude()).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().contains("backup")).count(),
+        1
+    );
+}
+
+#[test]
+fn uninstall_leaves_nothing_behind_but_the_journal() {
+    let t = Temp::new();
+    fs::create_dir_all(t.claude()).unwrap();
+    fs::create_dir_all(t.codex()).unwrap();
+    let project = t.0.join("project");
+    let p = project.to_string_lossy().into_owned();
+    assert_eq!(cli_env(&t, &["init", "--global"]).0, 0);
+    assert_eq!(cli_env(&t, &["init", "--project", &p, "--agent", "codex"]).0, 0);
+    record(&t.data(), &payload("PreToolUse"), "hook", "codex", None).unwrap();
+    let collector = t.data().join("bin").join("llca");
+    assert!(collector.exists() && t.data().join("installation.json").exists());
+    for dir in [t.claude(), t.codex(), project.join(".codex")] {
+        assert!(!dir.join(".llca-install.lock").exists(), "no lock file next to the agent's settings");
+    }
+
+    // The project still uses the collector: it stays.
+    let (code, out) = cli_env(&t, &["uninstall", "--global"]);
+    assert_eq!(code, 0);
+    assert!(collector.exists() && !out.contains("Removed the collector"), "{out}");
+
+    // Nothing uses it any more: removed, with the bookkeeping; the journal stays.
+    let (_, out) = cli_env(&t, &["uninstall", "--project", &p, "--agent", "codex"]);
+    assert!(out.contains("Removed the collector copy") && out.contains("Your journal is kept"), "{out}");
+    assert!(!collector.exists() && !t.data().join("bin").exists());
+    assert!(!t.data().join("installation.json").exists() && !t.data().join("install.lock").exists());
+    assert!(t.data().join("events.sqlite3").exists());
+    assert_eq!(all(&t.data()).len(), 1);
+
+    // Uninstalling an agent that was never there creates nothing.
+    let t = Temp::new();
+    assert_eq!(cli_env(&t, &["uninstall", "--global"]).0, 0);
+    assert!(!t.claude().exists() && !t.codex().exists());
+}
+
+#[test]
+fn collector_error_log_stays_small() {
+    let t = Temp::new();
+    fs::create_dir_all(t.data()).unwrap();
+    let log = t.data().join("collector-errors.log");
+    fs::write(&log, "x".repeat(300 * 1024)).unwrap();
+    let data = t.data().to_string_lossy().into_owned();
+    let (code, _, _) =
+        run_shell(&format!("{} --data-dir {} hook --adapter codex-v0", util::shell_quote(BIN), util::shell_quote(&data)), "not json");
+    assert_eq!(code, 0);
+    assert_eq!(fs::metadata(t.data().join("collector-errors.log.1")).unwrap().len(), 300 * 1024);
+    let fresh = fs::read_to_string(&log).unwrap();
+    assert!(fresh.ends_with("JSONDecodeError event not recorded\n") && fresh.lines().count() == 1, "{fresh}");
 }

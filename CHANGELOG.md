@@ -1,12 +1,31 @@
 # Changelog
 
 Versions before the first public release are listed for the record. After an
-upgrade, run `llca init --global --agent all` so that the hooks use the new
+upgrade, run `llca init --global` so that the hooks use the new
 version: `llca doctor` tells you when they are behind.
+
+## [0.7.7] - 2026-10-13
+
+First public release.
+
+- `llca init --global` without `--agent` sets up the agents found on this
+  computer (Codex, Claude Code or both), and says which one it skipped and how
+  to add it later. Before, it set up Codex only. `uninstall` without `--agent`
+  removes both.
+- `init` keeps the indentation of your settings file, and leaves a file that
+  already has llca's hooks exactly as it is.
+- `uninstall` leaves nothing behind but the journal: the collector copy
+  (`bin/llca`) is removed once no hooks use it, and the lock file is no longer
+  kept next to the agents' settings.
+- `collector-errors.log` no longer grows without limit: past 256 KB it becomes
+  `collector-errors.log.1`.
+- "Changes something that is live" is only shown for a deploy command
+  (`npm run deploy`, `vercel deploy`, `./deploy.sh`, `helm upgrade`…), no
+  longer for a file or folder named "deploy" (`cat deploy.md`, `ls deploy/`).
 
 ## [0.7.6] - 2026-10-13
 
-First public release.
+Release built for testing, not published.
 
 - **Retention.** Events older than 90 days are deleted by default, and their
   text is overwritten in the file. `llca retention [DAYS | off]` shows or

@@ -20,8 +20,8 @@ Claude Code do on this machine.
 Usage: llca [--data-dir PATH] COMMAND [OPTIONS]
 
 Commands:
-  init       Add llca hooks       (--global | --project PATH) [--agent codex|claude|all]
-  uninstall  Remove llca hooks    (--global | --project PATH) [--agent codex|claude|all]
+  init       Add llca hooks       (--global | --project PATH) [--agent codex|claude|all] (default: the agents found)
+  uninstall  Remove llca hooks    (--global | --project PATH) [--agent codex|claude|all] (default: all)
   doctor     Check the installation      [--project PATH] [--agent codex|claude|all] [--json]
   logs       Print recorded events       [--json] [--search TEXT] [--session ID] [--agent codex|claude] [--limit N]
   open       Open the dashboard          [--port N] [--no-browser]
@@ -207,6 +207,15 @@ fn keep_codex_hooks_local(project: &Path) -> String {
     }
 }
 
+/// An agent's own settings folder (~/.codex, ~/.claude).
+fn agent_home(agent: &str) -> PathBuf {
+    if agent == "codex" {
+        codex_home()
+    } else {
+        claude_home()
+    }
+}
+
 fn codex_home() -> PathBuf {
     std::env::var_os("CODEX_HOME").map(PathBuf::from).unwrap_or_else(|| util::home().join(".codex"))
 }
@@ -214,6 +223,9 @@ fn codex_home() -> PathBuf {
 fn claude_home() -> PathBuf {
     std::env::var_os("CLAUDE_CONFIG_DIR").map(PathBuf::from).unwrap_or_else(|| util::home().join(".claude"))
 }
+
+/// Past this size, collector-errors.log is renamed collector-errors.log.1.
+const ERRORS_LOG_MAX: u64 = 256 * 1024;
 
 fn agents_for(choice: Option<&str>, default: &str) -> Vec<&'static str> {
     match choice.unwrap_or(default) {
@@ -271,7 +283,12 @@ fn collect(data_dir: &Path, adapter: &str) -> i32 {
             use std::io::Write;
             use std::os::unix::fs::OpenOptionsExt;
             util::private_dir(data_dir)?;
-            let mut f = std::fs::OpenOptions::new().create(true).append(true).mode(0o600).open(data_dir.join("collector-errors.log"))?;
+            let log = data_dir.join("collector-errors.log");
+            // Keep the log small: past 256 KB it becomes collector-errors.log.1.
+            if std::fs::metadata(&log).is_ok_and(|m| m.len() > ERRORS_LOG_MAX) {
+                std::fs::rename(&log, data_dir.join("collector-errors.log.1"))?;
+            }
+            let mut f = std::fs::OpenOptions::new().create(true).append(true).mode(0o600).open(&log)?;
             writeln!(f, "{} {kind} event not recorded", util::now_iso())
         })();
     }
@@ -336,7 +353,23 @@ fn run(args: Args) -> Result<i32, String> {
                 eprintln!("llca: error: Specify --global, --project PATH, --codex-dir PATH or --claude-dir PATH");
                 return Ok(2);
             }
-            let agents = agents_for(args.agent.as_deref(), "codex");
+            // Without --agent: every agent, or the one whose folder was given.
+            let default = match (&args.codex_dir, &args.claude_dir) {
+                (Some(_), None) => "codex",
+                (None, Some(_)) => "claude",
+                _ => "all",
+            };
+            let mut agents = agents_for(args.agent.as_deref(), default);
+            // `init` without --agent sets up only the agents found on this computer
+            // (their settings folder exists), unless none is found.
+            let mut skipped = Vec::new();
+            if cmd == "init" && args.agent.is_none() && default == "all" {
+                let (found, missing): (Vec<&str>, Vec<&str>) = agents.iter().partition(|a| agent_home(a).is_dir());
+                if !found.is_empty() {
+                    agents = found;
+                    skipped = missing;
+                }
+            }
             let mut results = Vec::new();
             for agent in &agents {
                 results
@@ -357,7 +390,22 @@ fn run(args: Args) -> Result<i32, String> {
                 if agents.contains(&"claude-code") {
                     println!("Claude Code: hooks are picked up automatically; check them with /hooks or start a new session.");
                 }
+                for agent in &skipped {
+                    let flag = if *agent == "codex" { "codex" } else { "claude" };
+                    println!(
+                        "{}: not found on this computer (no {} folder), skipped. Once it is installed: llca init --global --agent {flag}",
+                        store::agent_name(agent),
+                        agent_home(agent).display()
+                    );
+                }
                 println!("Hooks observe calls without changing permission decisions.");
+            } else {
+                // The collector copy goes once no configuration runs it; the journal stays.
+                let defaults = [(codex_home(), "codex"), (claude_home(), "claude-code")];
+                if let Some(removed) = install::remove_collector_if_unused(&data_dir, &defaults).map_err(|e| e.to_string())? {
+                    println!("Removed the collector copy ({}): no hooks use it any more.", removed.display());
+                }
+                println!("Your journal is kept: {}", data_dir.join("events.sqlite3").display());
             }
             Ok(0)
         }

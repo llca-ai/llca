@@ -91,7 +91,7 @@ jobs:
           if [ ! -s notes.md ]; then echo "No section for $VERSION in CHANGELOG.md" >&2; exit 1; fi
           cat >> notes.md <<'EOF'
 
-          **Install:** `brew install llca-ai/tap/llca`, or download the archive for your system below. After an upgrade, run `llca init --global --agent all`.
+          **Install:** `brew install llca-ai/tap/llca`, or download the archive for your system below. After an upgrade, run `llca init --global`.
           EOF
           cat notes.md
 

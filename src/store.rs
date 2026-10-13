@@ -517,7 +517,8 @@ struct Seen<'a> {
 }
 
 /// Words found in every risky command the dashboard flags (RISKS in app.js).
-const RISK_WORDS: [&str; 12] = ["sudo", "rm", "git", "curl", "wget", "chmod", "publish", "docker", "gh", "terraform", "kubectl", "deploy"];
+const RISK_WORDS: [&str; 15] =
+    ["sudo", "rm", "git", "curl", "wget", "chmod", "publish", "docker", "gh", "terraform", "kubectl", "deploy", "pulumi", "helm", "vercel"];
 const EDIT_TOOLS: [&str; 5] = ["apply_patch", "Edit", "MultiEdit", "Write", "NotebookEdit"];
 const READ_TOOLS: [&str; 5] = ["Read", "read_file", "Grep", "Glob", "LS"];
 const WEB_TOOLS: [&str; 2] = ["WebFetch", "WebSearch"];

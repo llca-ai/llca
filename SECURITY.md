@@ -30,7 +30,7 @@ a new version with a rule in `rules/redaction.rules` and a case in
 Update llca, then:
 
 ```sh
-llca init --global --agent all   # the hooks use a copy of the binary: refresh it
+llca init --global   # the hooks use a copy of the binary: refresh it
 llca redact                      # apply the new rules to events already recorded
 ```
 

@@ -38,14 +38,14 @@ With Homebrew, on macOS or Linux (it builds from source, which takes about a min
 
 ```sh
 brew install llca-ai/tap/llca
-llca init --global --agent all   # install the hooks for Codex and Claude Code
+llca init --global               # hooks for Codex and Claude Code (those on this computer)
 llca doctor                      # checkup: what works, what to fix
 llca open                        # the dashboard, until Ctrl+C
 ```
 
 Codex asks you to trust new hooks: open `/hooks` in Codex once. Hooks apply to sessions started afterwards. To look around first, `llca demo` opens the dashboard on sample data, kept apart from your log.
 
-To upgrade: `brew upgrade llca`, then `llca init --global --agent all` again, so that the hooks use the new version (`llca doctor` reminds you).
+To upgrade: `brew upgrade llca`, then `llca init --global` again, so that the hooks use the new version (`llca doctor` reminds you).
 
 <details>
 <summary><b>Other ways to install</b>: prebuilt binary, from source</summary>
@@ -69,9 +69,9 @@ Each agent calls llca through its hooks, around every tool call it reports. llca
   <img src="assets/how-it-works-light.svg" alt="Codex and Claude Code call the llca collector through a hook on every tool call. The collector masks secrets and writes a minimal event to a SQLite journal on your computer. The dashboard on 127.0.0.1 reads the journal. llca sends nothing over the network.">
 </picture>
 
-- **Hooks.** `init` adds them to `~/.codex/hooks.json` and to `~/.claude/settings.json` (or to one project with `--project`), keeping any hooks you already have and a backup of the file.
+- **Hooks.** `init` adds them to `~/.codex/hooks.json` and to `~/.claude/settings.json` (or to one project with `--project`), keeping your settings, any hooks you already have, the file's indentation, and a backup. A file that already has llca's hooks is left untouched.
 - **The collector** reads the event, masks secrets, appends it to SQLite and exits. It adds about 4 ms per hook. If something goes wrong, it notes it in `collector-errors.log` and lets the agent go on.
-- **The hooks call a copy** of llca in its data folder, so that upgrading or moving llca never breaks them. After an upgrade, run `llca init --global --agent all` again; `doctor` and the dashboard tell you when the copy is behind.
+- **The hooks call a copy** of llca in its data folder, so that upgrading or moving llca never breaks them. After an upgrade, run `llca init --global` again; `doctor` and the dashboard tell you when the copy is behind.
 - **The dashboard** is a small server on `127.0.0.1`, protected by a token created at each launch. It runs until Ctrl+C.
 
 ## A tour of the dashboard
@@ -136,7 +136,7 @@ Masking protects the journal; it does not take a secret back from the agent. If 
 ## Commands
 
 ```sh
-llca init --global [--agent codex|claude|all]      # default: codex
+llca init --global [--agent codex|claude|all]      # default: the agents found on this computer
 llca init --project /path/to/project [--agent …]   # hooks for one project only
 llca doctor [--json]                               # checkup: what works, what to fix
 llca open [--port N] [--no-browser]                # dashboard, until Ctrl+C
@@ -145,7 +145,7 @@ llca logs [--json] [--search TEXT] [--agent …]     # recorded events in the te
 llca audit                                         # kept values that look like secrets
 llca redact                                        # apply today's redaction to recorded events
 llca retention [DAYS | off]                        # how long events are kept (default: 90 days)
-llca uninstall --global --agent all                # removes the hooks, keeps the journal
+llca uninstall --global [--agent …]                # removes the hooks (and the collector copy once unused), keeps the journal
 ```
 
 ## Limits

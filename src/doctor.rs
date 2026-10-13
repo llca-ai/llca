@@ -144,7 +144,7 @@ fn assess(report: &Value, target: &str, now: i64) -> (Vec<Line>, Vec<Problem>) {
         }
     }
     if !any_installed && !lines.iter().any(|l| l.mark == Mark::Problem) {
-        problems.push(Problem { what: "No agent is being recorded.".into(), fix: Some(format!("llca init {target} --agent all")) });
+        problems.push(Problem { what: "No agent is being recorded.".into(), fix: Some(format!("llca init {target}")) });
     }
 
     // Collector copy.
@@ -162,7 +162,7 @@ fn assess(report: &Value, target: &str, now: i64) -> (Vec<Line>, Vec<Problem>) {
             if any_hooks {
                 problems.push(Problem {
                     what: format!("The hooks run llca {shown}, older than this one ({running}): newer redaction rules do not apply yet."),
-                    fix: Some(format!("llca init {target} --agent all")),
+                    fix: Some(format!("llca init {target}")),
                 });
             }
         } else {

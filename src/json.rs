@@ -135,8 +135,13 @@ impl Value {
 
     /// Same layout as Python's `json.dumps(value, indent=2, ensure_ascii=False)`.
     pub fn to_pretty(&self) -> String {
+        self.to_pretty_indent(2)
+    }
+
+    /// Pretty-printed with `width` spaces per level.
+    pub fn to_pretty_indent(&self, width: usize) -> String {
         let mut out = String::new();
-        write_value(&mut out, self, Some(2), 0);
+        write_value(&mut out, self, Some(width), 0);
         out
     }
 }

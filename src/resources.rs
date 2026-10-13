@@ -477,7 +477,6 @@ impl MapBuilder {
             "PostToolUse" if r.status == "success" => c.ok = true,
             _ => {}
         }
-        let _ = r.id;
     }
 
     pub fn finish(self) -> Value {
