@@ -1395,9 +1395,11 @@ function mapLayout(map, hostW) {
     }
     y += 16;
   }
-  const height = Math.max(y, 260);
+  // Tall enough for the resources and for the agents with their "Agents"
+  // label above (36px): with few resources, two agents need more room.
   const agents = AGENT_ORDER.filter(a => map.agents[a]);
   const span = agents.length * 104 + (agents.length - 1) * 116;
+  const height = Math.max(y, span + 72, 260);
   const agentNodes = agents.map((a, i) => ({agent: a, top: Math.round((height - span) / 2) + i * 220, height: 104}));
   return {groups, nodes, agentNodes, height, leftW, rightW, rightX};
 }
