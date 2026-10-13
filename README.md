@@ -1,4 +1,7 @@
-<p align="center"><img src="assets/llca-logo.svg" alt="" width="88"></p>
+<p align="center"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/llca-logo-dark.svg">
+  <img src="assets/llca-logo.svg" alt="" width="88">
+</picture></p>
 
 <h1 align="center">llca</h1>
 
