@@ -1818,7 +1818,7 @@ function applyFilters(f) {
 function renderActiveFilters() {
   const chips = [];
   const add = (label, clear) => chips.push([label, clear]);
-  if (state.range !== '7d') add('Period: ' + rangeBounds().label, () => { state.range = '7d'; });
+  if (state.range !== NO_FILTERS.range) add('Period: ' + rangeBounds().label, () => { state.range = NO_FILTERS.range; });
   if (state.agent) add('Agent: ' + agentName(state.agent), () => { state.agent = ''; });
   if (state.project) add('Project: ' + project(state.project), () => { state.project = ''; });
   if (state.page === 'activity') {
@@ -2067,7 +2067,11 @@ document.addEventListener('keydown', e => {
 let resizeTimer;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (state.page === 'overview') renderOverview(); }, 150); });
 render();
-refresh();
+// The demo opens on the last 30 days (its month of sample activity); real use
+// on the last 7 days. Asked once, before the first data request.
+api('/api/status').then(status => {
+  if (status.demo) NO_FILTERS.range = state.range = '30d';
+}, () => {}).then(() => { render(); refresh(); });
 // Live updates: not while a refresh is still running (a large journal can
 // take a moment), and not once older pages were loaded.
 setInterval(() => { if (document.visibilityState === 'visible' && !state.loading && !state.pages) refresh(); }, 4000);

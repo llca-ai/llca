@@ -14,7 +14,8 @@ First public release.
   and `llca open` deletes the rest when it starts. `llca doctor` shows the
   setting.
 - `llca demo` shows a month of sample activity across six projects, so that
-  the 30-day view looks like real use.
+  the 30-day view looks like real use. The demo dashboard opens on the last
+  30 days; `llca open` still opens on the last 7 days.
 - README: screenshots of the dashboard and a diagram of how llca works.
 
 ## [0.7.5] - 2026-10-12
