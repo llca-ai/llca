@@ -50,3 +50,14 @@ jobs:
       - run: |
           rustup toolchain install 1.89 --profile minimal
           cargo +1.89 build --release --locked
+
+  # The install script is plain shell: lint it and check its syntax.
+  # No real release is downloaded here.
+  install-script:
+    name: install.sh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y shellcheck dash
+      - run: shellcheck install.sh
+      - run: sh -n install.sh && dash -n install.sh

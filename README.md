@@ -80,7 +80,15 @@ Codex asks you to trust new hooks: open `/hooks` in Codex once. Hooks apply to s
 To upgrade: `brew upgrade llca`, then `llca init --global` again, so that the hooks use the new version (`llca doctor` reminds you).
 
 <details>
-<summary><b>Other ways to install</b>: prebuilt binary, from source</summary>
+<summary><b>Other ways to install</b>: install script, prebuilt binary, from source</summary>
+
+**Install script (Linux, macOS).**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/llca-ai/llca/main/install.sh | sh
+```
+
+It downloads the release for your system, verifies its SHA-256 and installs `llca` to `~/.local/bin` without `sudo`. Tip: read the script first, and pin a version with `LLCA_VERSION=0.7.7` if you want a reproducible install.
 
 **Prebuilt binary.** Each [release](https://github.com/llca-ai/llca/releases) has an archive for macOS (Apple silicon and Intel) and Linux (x86_64 and arm64), with its SHA-256. Unpack it and put `llca` on your `PATH`. On Linux it needs the system SQLite library, present on most systems. On macOS, a binary downloaded with a browser is blocked by Gatekeeper because it is not signed: use Homebrew, or `curl` to download it.
 
