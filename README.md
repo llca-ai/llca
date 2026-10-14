@@ -8,7 +8,7 @@
 <p align="center"><b>Local Ledger for Coding Agents</b><br>
 A local, private log of what <b>Codex</b> and <b>Claude Code</b> do on your machine, in plain words, with a dashboard.</p>
 
-<p align="center"><a href="#install">Install</a> • <a href="#how-it-works">How it works</a> • <a href="#a-tour-of-the-dashboard">Dashboard tour</a> • <a href="#what-is-kept-and-what-is-not">What is kept</a> • <a href="SECURITY.md">Security</a> • <a href="CHANGELOG.md">Changelog</a></p>
+<p align="center"><a href="https://llca-ai.github.io/llca/">Live demo</a> • <a href="#install">Install</a> • <a href="#how-it-works">How it works</a> • <a href="#a-tour-of-the-dashboard">Dashboard tour</a> • <a href="#what-is-kept-and-what-is-not">What is kept</a> • <a href="SECURITY.md">Security</a> • <a href="CHANGELOG.md">Changelog</a></p>
 
 <p align="center"><a href="https://github.com/llca-ai/llca/actions/workflows/ci.yml"><img src="https://github.com/llca-ai/llca/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 <a href="https://github.com/llca-ai/llca/releases"><img src="https://img.shields.io/github/v/release/llca-ai/llca" alt="Latest release"></a>
@@ -24,6 +24,8 @@ A local, private log of what <b>Codex</b> and <b>Claude Code</b> do on your mach
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/activity-dark.png">
   <img src="assets/screenshots/activity-light.png" alt="The activity list: each action in plain words, grouped by session, with the details of an action that sent a secret to Cloudflare">
 </picture>
+
+**[Try the live demo](https://llca-ai.github.io/llca/)**: the real dashboard with sample data, in your browser, nothing to install.
 
 Coding agents run commands, edit files, call online services and sometimes see your secrets. llca records the tool calls they report through their hooks, masks recognised secrets **before** anything is written, and shows it all in a dashboard on your own computer. One binary, no account, and llca sends nothing anywhere. Runs on **macOS** and **Linux**, and more agents are coming.
 
