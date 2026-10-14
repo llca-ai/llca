@@ -13,7 +13,7 @@ A local, private log of what <b>Codex</b> and <b>Claude Code</b> do on your mach
 <p align="center"><a href="https://github.com/llca-ai/llca/actions/workflows/ci.yml"><img src="https://github.com/llca-ai/llca/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 <a href="https://github.com/llca-ai/llca/releases"><img src="https://img.shields.io/github/v/release/llca-ai/llca" alt="Latest release"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
-<img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey" alt="macOS and Linux"></p>
+<a href="#install"><img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey" alt="macOS and Linux"></a></p>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/overview-dark.png">
@@ -90,7 +90,7 @@ curl -fsSL https://raw.githubusercontent.com/llca-ai/llca/main/install.sh | sh
 
 It downloads the release for your system, verifies its SHA-256 and installs `llca` to `~/.local/bin` without `sudo`. Tip: read the script first, and pin a version with `LLCA_VERSION=0.7.7` if you want a reproducible install.
 
-**Prebuilt binary.** Each [release](https://github.com/llca-ai/llca/releases) has an archive for macOS (Apple silicon and Intel) and Linux (x86_64 and arm64), with its SHA-256. Unpack it and put `llca` on your `PATH`. On Linux it needs the system SQLite library, present on most systems. On macOS, a binary downloaded with a browser is blocked by Gatekeeper because it is not signed: use Homebrew, or `curl` to download it.
+**Prebuilt binary.** Each [release](https://github.com/llca-ai/llca/releases) has an archive for macOS (Apple silicon and Intel) and Linux (x86_64 and arm64), with its SHA-256. Unpack it and put `llca` on your `PATH` (the install script above does this for you). On Linux it needs the system SQLite library, present on most systems. On macOS, a binary downloaded with a browser is blocked by Gatekeeper because it is not signed: use Homebrew, or `curl` to download it.
 
 **From source.** You need Rust and, on macOS, the Xcode Command Line Tools (`xcode-select --install`); on Linux, a C toolchain and the SQLite development files (`build-essential libsqlite3-dev` on Debian and Ubuntu, `gcc sqlite-devel` on Fedora, `base-devel sqlite` on Arch).
 
@@ -104,7 +104,8 @@ cargo build --release            # → target/release/llca
 
 ```sh
 llca uninstall --global          # removes the hooks and, once unused, the collector copy; keeps the journal
-brew uninstall llca
+brew uninstall llca              # installed with Homebrew
+rm ~/.local/bin/llca             # installed with the install script
 ```
 
 To delete the journal too, remove the data folder: `~/Library/Application Support/llca` on macOS, `~/.local/share/llca` on Linux.
