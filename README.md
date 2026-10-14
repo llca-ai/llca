@@ -8,7 +8,12 @@
 <p align="center"><b>Local Ledger for Coding Agents</b><br>
 A local, private log of what <b>Codex</b> and <b>Claude Code</b> do on your machine, in plain words, with a dashboard.</p>
 
-<p align="center"><a href="https://github.com/llca-ai/llca/actions/workflows/ci.yml"><img src="https://github.com/llca-ai/llca/actions/workflows/ci.yml/badge.svg" alt="CI"></a></p>
+<p align="center"><a href="#install">Install</a> • <a href="#how-it-works">How it works</a> • <a href="#a-tour-of-the-dashboard">Dashboard tour</a> • <a href="#what-is-kept-and-what-is-not">What is kept</a> • <a href="SECURITY.md">Security</a> • <a href="CHANGELOG.md">Changelog</a></p>
+
+<p align="center"><a href="https://github.com/llca-ai/llca/actions/workflows/ci.yml"><img src="https://github.com/llca-ai/llca/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+<a href="https://github.com/llca-ai/llca/releases"><img src="https://img.shields.io/github/v/release/llca-ai/llca" alt="Latest release"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+<img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey" alt="macOS and Linux"></p>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/overview-dark.png">
@@ -20,7 +25,15 @@ A local, private log of what <b>Codex</b> and <b>Claude Code</b> do on your mach
   <img src="assets/screenshots/activity-light.png" alt="The activity list: each action in plain words, grouped by session, with the details of an action that sent a secret to Cloudflare">
 </picture>
 
-Coding agents run commands, edit files, call online services and sometimes see your secrets. llca records the tool calls they report through their hooks, masks recognised secrets **before** anything is written, and shows it all in a dashboard on your own computer. One binary, no account, and llca sends nothing anywhere. Runs on **macOS** and **Linux**; Cursor, Gemini CLI and Copilot CLI are next.
+Coding agents run commands, edit files, call online services and sometimes see your secrets. llca records the tool calls they report through their hooks, masks recognised secrets **before** anything is written, and shows it all in a dashboard on your own computer. One binary, no account, and llca sends nothing anywhere. Runs on **macOS** and **Linux**, and more agents are coming.
+
+## Supported agents
+
+| Agent | Status | Hooks file |
+|---|---|---|
+| Codex | ✓ Supported | `~/.codex/hooks.json` |
+| Claude Code | ✓ Supported | `~/.claude/settings.json` |
+| Cursor / Gemini CLI / Copilot CLI | Next | — |
 
 ## What you get
 
@@ -34,7 +47,7 @@ llca is a security and audit log, not a debugger. To replay full Claude Code tra
 
 ## Install
 
-With Homebrew, on macOS or Linux (it installs the prebuilt binary of the latest release, in a few seconds):
+With Homebrew, on macOS or Linux (it installs the prebuilt binary of the latest release in a few seconds, no Rust needed):
 
 ```sh
 brew install llca-ai/tap/llca
@@ -42,6 +55,25 @@ llca init --global               # hooks for Codex and Claude Code (those on thi
 llca doctor                      # checkup: what works, what to fix
 llca open                        # the dashboard, until Ctrl+C
 ```
+
+**Verify.** `llca --version` prints the version; `llca doctor` checks each agent, the collector and the journal. A healthy install looks like this (shortened):
+
+```
+$ llca --version
+0.7.7
+
+$ llca doctor
+llca 0.7.7 · checkup
+
+  ✓ Codex        Recording · last event just now
+  ✓ Claude Code  Recording · last event just now
+  ✓ Collector    0.7.7, up to date
+  ✓ Journal      2 events in 2 sessions · last one just now
+
+All good.
+```
+
+Right after `init`, an agent shows `!` ("nothing received yet") until it has run one tool call: start a new session and ask it to run `pwd` (for Codex, trust the hooks first, see below).
 
 Codex asks you to trust new hooks: open `/hooks` in Codex once. Hooks apply to sessions started afterwards. To look around first, `llca demo` opens the dashboard on sample data, kept apart from your log.
 
@@ -59,6 +91,15 @@ cargo build --release            # → target/release/llca
 ./target/release/llca demo
 ```
 </details>
+
+## Uninstall
+
+```sh
+llca uninstall --global          # removes the hooks and, once unused, the collector copy; keeps the journal
+brew uninstall llca
+```
+
+To delete the journal too, remove the data folder: `~/Library/Application Support/llca` on macOS, `~/.local/share/llca` on Linux.
 
 ## How it works
 
@@ -121,7 +162,11 @@ service   Stripe                        # Used Stripe
 
 ## What is kept, and what is not
 
-**Kept:** agent, session, tool name, the command or arguments with secrets masked, file paths, working folder, time, and the result (exit code, success). **Not kept:** prompts, model replies, tool output, file contents, patches and the text of edits, heredocs, and text typed into a running process. These become `[CONTENT NOT KEPT]`.
+| Kept | Not kept |
+|---|---|
+| agent<br>session<br>tool name<br>the command or arguments, with secrets masked<br>file paths<br>working folder<br>time<br>the result (exit code, success) | prompts<br>model replies<br>tool output<br>file contents<br>patches and the text of edits<br>heredocs<br>text typed into a running process |
+
+What is not kept becomes `[CONTENT NOT KEPT]`.
 
 **Secrets** are replaced by `[REDACTED]` before anything is written: secret-named fields and options (`password`, `--token`, `API_KEY=…`), credential headers, signed URL parameters (`sig`, `X-Amz-Signature`…), private keys, credentials in URLs, and about 30 known token formats (OpenAI, Anthropic, GitHub, AWS, Google, Stripe, Slack…). The rules are in [`rules/redaction.rules`](rules/redaction.rules), a plain-text file, and each is proven by a case in [`rules/cases.txt`](rules/cases.txt).
 
@@ -155,6 +200,16 @@ llca uninstall --global [--agent …]                # removes the hooks (and th
 - Permission requests are logged, but neither agent reports your final decision.
 - Only local sessions run hooks: cloud-run sessions and the ChatGPT and Claude chat apps are not observed.
 - The journal is not tamper-proof evidence and llca is not a security control. It does not replace a sandbox or scoped credentials.
+
+## FAQ
+
+**Does llca slow my agent?** About 4 ms per hook. If something goes wrong, llca notes it in `collector-errors.log` and lets the agent go on.
+
+**Can it block a command?** No. It never blocks, allows or changes anything: it only writes down what happened.
+
+**Does it send anything anywhere?** No. There is no account and no telemetry, and the dashboard listens on `127.0.0.1` only.
+
+**Can an agent tamper with the log?** Yes, technically: the agent runs as your user. That is why the journal is not tamper-proof evidence and llca is not a security control (see [Limits](#limits)).
 
 ## Development
 
