@@ -1,0 +1,67 @@
+# The live demo on GitHub Pages: the real dashboard with the sample data of
+# `llca demo` saved as JSON (scripts/build-demo-site.mjs). Pull requests only
+# check that the site builds; the site is published from main.
+name: Demo site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "static/**"
+      - "assets/llca-logo.svg"
+      - "scripts/build-demo-site.mjs"
+      - "scripts/demo-site/**"
+      - ".github/workflows/pages.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "static/**"
+      - "scripts/build-demo-site.mjs"
+      - "scripts/demo-site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SQLite development files
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
+      - name: Build llca
+        run: cargo build --release
+
+      - name: Build the demo site
+        run: node scripts/build-demo-site.mjs demo-site
+
+      - uses: actions/configure-pages@v5
+        if: github.event_name != 'pull_request'
+
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
+        with:
+          path: demo-site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
